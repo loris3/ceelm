@@ -1,3 +1,10 @@
-/cfe.sqsh
-/slurm-139507.out
+*.sqsh
+*.out
 /trak_test.py
+/data
+*.pyc
+*.log
+trak
+out
+*.wandb
+wandb
