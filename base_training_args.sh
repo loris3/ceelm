@@ -1,10 +1,4 @@
 #!/bin/bash
-
-ID=$((RANDOM % 90000 + 10000)) # generate 5-digit port number
-export header="torchrun --nproc_per_node 2 --nnodes 1 \
---rdzv-id=$ID --rdzv_backend c10d --rdzv-endpoint=localhost:$ID \
--m colm.train.train"
-
 export base_training_args="--do_train True \
 --max_seq_length 512 \
 --use_fast_tokenizer True \

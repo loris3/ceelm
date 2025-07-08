@@ -40,6 +40,7 @@ from colm.train.data_arguments import DataArguments, get_data_statistics
 from colm.train.model_arguments import ModelArguments, add_padding_to_tokenizer
 from colm.train.training_arguments import TrainingArguments
 from colm.train.custom_phi import DecomposedPhiCausalLM
+from colm.train.custom_olmo import DecomposedOlmo2
 
 
 logger = logging.getLogger(__name__)
@@ -251,7 +252,7 @@ def main():
     else:
         # Change forward pass of model for efficient zeroth-order gradient
         if training_args.data_selection_unit == "mezo" and training_args.efficient_mezo:
-            model.decomposer = DecomposedPhiCausalLM(model.model)
+            model.decomposer = DecomposedOlmo2(model.model)
         train_dataset = get_training_dataset(
             data_args.train_files,
             tokenizer=tokenizer,

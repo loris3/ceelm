@@ -2,8 +2,8 @@
 # Weighted length sampling
 
 DATA_DIR=./data
-ORG_NAME=microsoft # microsoft, meta-llama, stabilityai
-MODEL_NAME=phi-2 # phi-2, Phi-3-mini-4k-instruct, Meta-Llama-3.1-8B-Instruct, stablelm-zephyr-3b
+ORG_NAME=allenai # microsoft, meta-llama, stabilityai
+MODEL_NAME=OLMo-2-1124-7B # phi-2, Phi-3-mini-4k-instruct, Meta-Llama-3.1-8B-Instruct, stablelm-zephyr-3b
 MODEL_PATH="${ORG_NAME}/${MODEL_NAME}"
 PERCENTAGE=1 # percentage of the full data to train, you can specify the training file you want to use in the script
 for DATA_SEED in 0
@@ -43,5 +43,5 @@ do
     WANDB_PROJECT=colm_math_lora_efficient
 
     echo "Writing output to" $JOB_NAME
-    CUDA_VISIBLE_DEVICES=0,1 ./colm/scripts/train/lora_train_math.sh "$DATA_DIR" "$MODEL_PATH" "$PERCENTAGE" "$DATA_SEED" "$JOB_NAME" "$GAS" "$RANK" "$ALPHA" "$BATCH_RATIO" "$SELECTION_METHOD" "$ZO_DIM" "$DATA_SELECTION" "$SAVE_STRATEGY" "$SAVE_STEPS" "$MAX_STEPS" "$FACILITY_SELECT" "$MEZO_SELECTION" "$MAX_LENGTH" "$DROPOUT" "$MEZO_TOPK" "$MEZO_EPS" "$MEZO_OPTIM" "$SOURCE_WISE" "$LAST_LAYERS" "$MEZO_TRANSFORM" "$WANDB_PROJECT" "$KEEP_SOURCES" "$DEVICE_BS" "$EFF_MEZO"
+    ./lora_train_math.sh "$DATA_DIR" "$MODEL_PATH" "$PERCENTAGE" "$DATA_SEED" "$JOB_NAME" "$GAS" "$RANK" "$ALPHA" "$BATCH_RATIO" "$SELECTION_METHOD" "$ZO_DIM" "$DATA_SELECTION" "$SAVE_STRATEGY" "$SAVE_STEPS" "$MAX_STEPS" "$FACILITY_SELECT" "$MEZO_SELECTION" "$MAX_LENGTH" "$DROPOUT" "$MEZO_TOPK" "$MEZO_EPS" "$MEZO_OPTIM" "$SOURCE_WISE" "$LAST_LAYERS" "$MEZO_TRANSFORM" "$WANDB_PROJECT" "$KEEP_SOURCES" "$DEVICE_BS" "$EFF_MEZO"
 done

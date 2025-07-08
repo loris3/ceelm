@@ -238,7 +238,7 @@ class TrainingArguments(TA):
         },
     )
     save_indices: bool = field(
-        default=False, 
+        default=True, 
         metadata={
             "help": (
                 "Whether save the mini-batch and selected indices."

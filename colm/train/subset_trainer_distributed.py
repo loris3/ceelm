@@ -49,6 +49,7 @@ from transformers.trainer_callback import (
     ProgressCallback,
     TrainerCallback,
     TrainerState,
+    TrainerControl
 )
 from transformers.trainer_pt_utils import (
     get_dataloader_sampler,
@@ -226,6 +227,8 @@ class SubsetTrainer(Trainer):
         self.zo_random_seed = np.random.randint(1000000000)
         self.random_selection_seed = np.random.randint(42)
         self.data_collator = data_collator
+
+        
 
     def _get_collator_with_removed_columns(
         self, data_collator: Callable, description: Optional[str] = None
@@ -495,6 +498,7 @@ class SubsetTrainer(Trainer):
                 )
 
         # Update the references
+        print("self.callback_handler =", self.callback_handler.callbacks, flush=True)
         self.callback_handler.model = self.model
         self.callback_handler.optimizer = self.optimizer
         self.callback_handler.lr_scheduler = self.lr_scheduler
@@ -958,7 +962,7 @@ class SubsetTrainer(Trainer):
                         args, self.state, self.control)
 
                     self._maybe_log_save_evaluate(
-                        tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
+                        tr_loss, grad_norm, model, trial, epoch, start_time,ignore_keys_for_eval)
 
                     if self.control.should_epoch_stop or self.control.should_training_stop:
                         # PyTorch/XLA relies on the data loader to insert the mark_step for
@@ -978,7 +982,7 @@ class SubsetTrainer(Trainer):
             self.control = self.callback_handler.on_epoch_end(
                 args, self.state, self.control)
             self._maybe_log_save_evaluate(
-                tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
+                tr_loss, grad_norm, model, trial, epoch, start_time,ignore_keys_for_eval)
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
                 if is_torch_xla_available():
@@ -1758,7 +1762,7 @@ class SubsetTrainerEfficient(SubsetTrainer):
 
         total_batched_samples = 0
         # TODO: Improve this part, Hardcode for nowAdd commentMore actions
-        total_reps = torch.zeros((self.num_orig, 2560 * 128), device=args.device)
+        total_reps = torch.zeros((self.num_orig, 4096 * 128), device=args.device)
         input_list = [None for _ in range(self.num_orig)]
         model.module.decomposer._compute_per_sample_loss = True
 
@@ -2002,7 +2006,7 @@ class SubsetTrainerEfficient(SubsetTrainer):
                                        for i in range(0, len(selected_inputs), self.new_bs)]
                     # Reinit
                     # TODO: Improve this part, Hardcode for now
-                    total_reps = torch.zeros((self.num_orig, 2560 * 128), device=args.device)
+                    total_reps = torch.zeros((self.num_orig, 4096 * 128), device=args.device)
                     input_list = [None for _ in range(self.num_orig)]
                     
                     for _, inner_inputs in enumerate(selected_inputs):
@@ -2070,11 +2074,13 @@ class SubsetTrainerEfficient(SubsetTrainer):
                     self.state.global_step += 1
                     self.state.epoch = epoch + \
                         (outer_step + 1 + steps_skipped) / steps_in_epoch
+                    # print("before", self.control)
                     self.control = self.callback_handler.on_step_end(
                         args, self.state, self.control)
-
+                    # print("after", self.control)
+                    self.state.stateful_callbacks["TrainerControl"] = self.control.state()
                     self._maybe_log_save_evaluate(
-                        tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
+                        tr_loss, grad_norm, model, trial, epoch, start_time,ignore_keys_for_eval)
 
                     if self.control.should_epoch_stop or self.control.should_training_stop:
                         # PyTorch/XLA relies on the data loader to insert the mark_step for
@@ -2094,7 +2100,7 @@ class SubsetTrainerEfficient(SubsetTrainer):
             self.control = self.callback_handler.on_epoch_end(
                 args, self.state, self.control)
             self._maybe_log_save_evaluate(
-                tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
+                tr_loss, grad_norm, model, trial, epoch, start_time, ignore_keys_for_eval)
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
                 if is_torch_xla_available():
