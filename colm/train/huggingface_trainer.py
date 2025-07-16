@@ -209,10 +209,10 @@ class CustomTrainer(Trainer):
         # Set custom arguments
         if args.source_wise_selection != "none":
             self.args.remove_unused_columns = False
-        if self.args.save_indices:
-            self.indices_path = os.path.join(self.args.output_dir, 'indices')
-            os.makedirs(self.indices_path, exist_ok=True)
-            print(f"Save indices to {self.indices_path}")
+        # if self.args.save_indices:
+        self.indices_path = os.path.join(self.args.output_dir, 'indices')
+        os.makedirs(self.indices_path, exist_ok=True)
+        print(f"Save indices to {self.indices_path}")
         self.data_collator = data_collator
 
     def _get_collator_with_removed_columns(
@@ -535,10 +535,10 @@ class CustomTrainer(Trainer):
 
             step = -1
             for step, inputs in enumerate(epoch_iterator):
-                if self.args.save_indices:
-                    rank = int(os.environ['RANK'])
-                    current_step = step * self.args.world_size + rank + epoch * steps_in_epoch
-                    torch.save(inputs["indices"], os.path.join(self.indices_path, f'iter{current_step}_full_indices.pt'))
+                # if self.args.save_indices:
+                rank = int(os.environ['RANK'])
+                current_step = step * self.args.world_size + rank + epoch * steps_in_epoch
+                torch.save(inputs["indices"], os.path.join(self.indices_path, f'iter{current_step}_full_indices.pt'))
                 total_batched_samples += 1
 
                 if self.args.include_num_input_tokens_seen:

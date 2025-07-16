@@ -8,3 +8,15 @@ trak
 out
 *.wandb
 wandb
+checkpoints/*
+less
+DataInf
+models/*
+model_checkpoints/*
+runnnn.sh
+cache/*
+results/*
+dataset/*
+*.err
+*.sbatch
+*.sh

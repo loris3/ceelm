@@ -216,10 +216,9 @@ class SubsetTrainer(Trainer):
         # Set custom arguments
         if args.source_wise_selection != "none":
             self.args.remove_unused_columns = False
-        if self.args.save_indices:
-            self.indices_path = os.path.join(self.args.output_dir, 'indices')
-            os.makedirs(self.indices_path, exist_ok=True)
-            print(f"Save indices to {self.indices_path}")
+        self.indices_path = os.path.join(self.args.output_dir, 'indices')
+        os.makedirs(self.indices_path, exist_ok=True)
+        print(f"Save indices to {self.indices_path}")
         self.prev_m_t = None
         self.prev_v_t = None
         self.named_parameters_to_optim = []
@@ -728,7 +727,7 @@ class SubsetTrainer(Trainer):
                             elif args.mezo_transform == "clip_last":
                                 # Approximate by dividing by the number of layers
                                 clip_coef = args.max_grad_norm / \
-                                    (all_reps_norm / 32)
+                                    (all_reps_norm / 16) # TODO this is num layers
                                 if clip_coef < 1:
                                     all_reps = all_reps * clip_coef
                         else:
@@ -832,29 +831,29 @@ class SubsetTrainer(Trainer):
                                 len(selected_idx), dtype=torch.float32)
 
                         # Save indices
-                        if self.args.save_indices:
-                            # Full indices
-                            current_step = outer_step + epoch * steps_in_epoch
-                            self.extract_and_save_original_indices(
-                                complete_input_list,
-                                range(len(complete_input_list)),
-                                os.path.join(
-                                    self.indices_path, f'iter{current_step}_full_indices.pt')
-                            )
-                            # Sampling indices
-                            self.extract_and_save_original_indices(
-                                complete_input_list,
-                                sampling_indices,
-                                os.path.join(
-                                    self.indices_path, f'iter{current_step}_sampling_indices.pt')
-                            )
-                            # Selected indices
-                            self.extract_and_save_original_indices(
-                                complete_input_list,
-                                selected_idx,
-                                os.path.join(
-                                    self.indices_path, f'iter{current_step}_selected_indices.pt')
-                            )
+               
+                        # Full indices
+                        current_step = outer_step + epoch * steps_in_epoch
+                        self.extract_and_save_original_indices(
+                            complete_input_list,
+                            range(len(complete_input_list)),
+                            os.path.join(
+                                self.indices_path, f'iter{current_step}_full_indices.pt')
+                        )
+                        # Sampling indices
+                        self.extract_and_save_original_indices(
+                            complete_input_list,
+                            sampling_indices,
+                            os.path.join(
+                                self.indices_path, f'iter{current_step}_sampling_indices.pt')
+                        )
+                        # Selected indices
+                        self.extract_and_save_original_indices(
+                            complete_input_list,
+                            selected_idx,
+                            os.path.join(
+                                self.indices_path, f'iter{current_step}_selected_indices.pt')
+                        )
 
                         if "weighted" in args.data_selection_method:
                             inputs_weights = (
@@ -1762,7 +1761,7 @@ class SubsetTrainerEfficient(SubsetTrainer):
 
         total_batched_samples = 0
         # TODO: Improve this part, Hardcode for nowAdd commentMore actions
-        total_reps = torch.zeros((self.num_orig, 4096 * 128), device=args.device)
+        total_reps = torch.zeros((self.num_orig, 2048  * 128 * 16), device=args.device)
         input_list = [None for _ in range(self.num_orig)]
         model.module.decomposer._compute_per_sample_loss = True
 
@@ -1964,29 +1963,29 @@ class SubsetTrainerEfficient(SubsetTrainer):
                             selected_idx = list_idx_keep[:self.num_select]
 
                         # Save indices
-                        if self.args.save_indices:
-                            # Full indices
-                            current_step = outer_step + epoch * steps_in_epoch
-                            self.extract_and_save_original_indices(
-                                complete_input_list,
-                                range(len(complete_input_list)),
-                                os.path.join(
-                                    self.indices_path, f'iter{current_step}_full_indices.pt')
-                            )
-                            # Sampling indices
-                            self.extract_and_save_original_indices(
-                                complete_input_list,
-                                sampling_indices,
-                                os.path.join(
-                                    self.indices_path, f'iter{current_step}_sampling_indices.pt')
-                            )
-                            # Selected indices
-                            self.extract_and_save_original_indices(
-                                complete_input_list,
-                                selected_idx,
-                                os.path.join(
-                                    self.indices_path, f'iter{current_step}_selected_indices.pt')
-                            )
+                        # if self.args.save_indices:
+                        # Full indices
+                        current_step = outer_step + epoch * steps_in_epoch
+                        self.extract_and_save_original_indices(
+                            complete_input_list,
+                            range(len(complete_input_list)),
+                            os.path.join(
+                                self.indices_path, f'iter{current_step}_full_indices.pt')
+                        )
+                        # Sampling indices
+                        self.extract_and_save_original_indices(
+                            complete_input_list,
+                            sampling_indices,
+                            os.path.join(
+                                self.indices_path, f'iter{current_step}_sampling_indices.pt')
+                        )
+                        # Selected indices
+                        self.extract_and_save_original_indices(
+                            complete_input_list,
+                            selected_idx,
+                            os.path.join(
+                                self.indices_path, f'iter{current_step}_selected_indices.pt')
+                        )
 
                         # Explicitly convert selected_idx to int32 to avoid
                         # undesirable behavior after broadcasting
@@ -2006,7 +2005,7 @@ class SubsetTrainerEfficient(SubsetTrainer):
                                        for i in range(0, len(selected_inputs), self.new_bs)]
                     # Reinit
                     # TODO: Improve this part, Hardcode for now
-                    total_reps = torch.zeros((self.num_orig, 4096 * 128), device=args.device)
+                    total_reps = torch.zeros((self.num_orig, 2048 * 128 *16), device=args.device)
                     input_list = [None for _ in range(self.num_orig)]
                     
                     for _, inner_inputs in enumerate(selected_inputs):

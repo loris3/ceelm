@@ -104,8 +104,8 @@ def main():
         logger.info("Set dropout to 0")
         model_config = AutoConfig.from_pretrained(
             model_args.model_name_or_path, cache_dir=model_args.cache_dir)
-        assert isinstance(
-            model_config, PhiConfig), "Only support no dropout for Phi-2!"
+        # assert isinstance(
+        #     model_config, PhiConfig), "Only support no dropout for Phi-2!"
         model_config.resid_pdrop = 0
         model_args.lora_dropout = 0
         model = AutoModelForCausalLM.from_pretrained(

@@ -570,8 +570,9 @@ class DataCollatorForSupervisedDatasetWithSource(object):
         indices = []
         weights = []
         completion_lengths = []
-        
+       
         for instance in instances:
+            
             sources.append(instance['input_ids'])
             targets.append(instance['labels'])
             data_sources.append(instance['sources'])

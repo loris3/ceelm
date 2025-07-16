@@ -1,9 +1,5 @@
-import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
-
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -12,14 +8,7 @@ class ModelArguments:
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune, or train from scratch.
     """
 
-    model_name_or_path: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": (
-                "The model checkpoint for weights initialization. Don't set if you want to train a model from scratch."
-            )
-        },
-    )
+    
     checkpoint_path: Optional[str] = field(
         default=None,
         metadata={
@@ -92,8 +81,3 @@ class ModelArguments:
         },
     )
 
-
-def add_padding_to_tokenizer(tokenizer):
-    """ add the padding tokens in the tokenizer """
-    if tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": "<pad>"})

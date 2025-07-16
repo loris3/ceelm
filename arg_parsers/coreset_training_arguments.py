@@ -1,60 +1,72 @@
 from dataclasses import asdict, dataclass, field, fields
 from typing import Optional
-
-from transformers import TrainingArguments as TA
-from transformers.utils import logging
-
-
-logger = logging.get_logger(__name__)
-log_levels = logging.get_log_levels_dict().copy()
-trainer_log_levels = dict(**log_levels, passive=-1)
-
+from transformers import TrainingArguments 
+import os
 
 @dataclass
-class TrainingArguments(TA):
-    analysis_mode: float = field(
-        default=False,
+class CoresetTrainingArguments(TrainingArguments):
+
+
+    # adapted config format of https://github.com/BigML-CS-UCLA/CoLM/blob/395abfd86cacb40e404bf5fd96a0b7d5918ac8a8/colm/train/training_arguments.py
+    #####################
+    model_name_or_path: Optional[str] = field(
+        default="allenai/OLMo-2-1124-7B",
         metadata={
             "help": (
-                "Whether to run in analysis mode. "
+                "The model checkpoint for weights initialization. Don't set if you want to train a model from scratch."
             )
         },
     )
-    analysis_dataset: str = field(
-        default="bbh",
-        metadata={
-            "help": (
-                "The dataset to use for analysis mode. "
-            )
-        },
-    )
-    train_dataset_name: str = field(
+    train_datasets: str = field(
         default=None,
         metadata={
             "help": (
-                "Dataset name for model name. "
+                "Train dataset names, white space seperated."
             )
         },
     )
+    eval_dataset: str = field(
+        default=None,
+        metadata={
+            "help": (
+                "Eval dataset name."
+            )
+        },
+    )
+
     small_batch_ratio: Optional[float] = field(
-        default=1.,
+        default=0.5,
         metadata={
             "help": (
-                "The ratio of the large batch to be trained. "
+                "The ratio of the large batch to be trained."
             )
         },
     )
-    data_selection_method: Optional[str] = field(
-        default="none",
+    
+    coreset_method: Optional[str] = field(
+        default="submodlib",
         metadata={
             "help": (
-                "Method to select examples in the large batch. "
+                "Method used to obtain coresets."
             ),
             "choices": ["submodlib", "weightedsubmodlib", "none"],
         },
     )
+    output_dir: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Where the model will be saved."
+            )
+        },
+    )
+    
+        
+    
+    # mezo
+    ############
     efficient_mezo: bool = field(
-        default=False, 
+        default=True, 
         metadata={
             "help": (
                 "Use efficient implementation for MeZO."
@@ -79,7 +91,7 @@ class TrainingArguments(TA):
         },
     )
     mezo_selection: Optional[str] = field(
-        default="mezo_selection",
+        default="grad",
         metadata={
             "help": (
                 "Mezo selection criteria. "
@@ -96,6 +108,9 @@ class TrainingArguments(TA):
             "choices": ["largest", "smallest", "random", "sampling", "largest_smallest"]
         },
     )
+    #############
+    
+    
     facility_similarity: Optional[str] = field(
         default="l1",
         metadata={
@@ -123,7 +138,7 @@ class TrainingArguments(TA):
         },
     )
     mezo_optim: Optional[str] = field(
-        default="sgd",
+        default="adam",
         metadata={
             "help": (
                 "Optimizer to estimate with mezo. "
@@ -183,7 +198,7 @@ class TrainingArguments(TA):
         default="0_1_3_5_7_8_9_10_11_13",
         metadata={
             "help": (
-                "List of data sources whose all examples to be kept in the large mini-batch. Please separate by _"
+                "List of data sources whose all examples to be kept in the large mini-batch. Will be compared against dataset[:]['sources']"
             )
         },
     )
@@ -213,38 +228,8 @@ class TrainingArguments(TA):
             "choices": ["q_proj", "k_proj", "v_proj", "o_proj", "fc1", "fc2", "qkv_proj", "qkvo_proj", "fc"],
         },
     )
-    wandb_entity: Optional[str] = field(
-        default="loriss",
-        metadata={
-            "help": (
-                "Name of wandb entity. "
-            ),
-        },
-    )
-    wandb_project: Optional[str] = field(
-        default="colm",
-        metadata={
-            "help": (
-                "Name of wandb project. "
-            ),
-        },
-    )
-    wandb_notes: Optional[str] = field(
-        default="Note",
-        metadata={
-            "help": (
-                "Wandb note. "
-            ),
-        },
-    )
-    # save_indices: bool = field(
-    #     default=True, 
-    #     metadata={
-    #         "help": (
-    #             "Whether save the mini-batch and selected indices."
-    #         )
-    #     },
-    # )
+    
+    
     nan_grad_handling: Optional[str] = field(
         default="none",
         metadata={
@@ -261,6 +246,22 @@ class TrainingArguments(TA):
                 "Value to clip NaN grads to when using clip_max for nan_grad_handling. "
             ),
         }
+    )
+    max_steps: int = field(
+        default=1024,
+        metadata={
+            "help": (
+                "Maximum number of steps. "
+            )
+        },
+    )
+    seed: int = field(
+        default=0,
+        metadata={
+            "help": (
+                "Seed."
+            )
+        },
     )
     # SuperGLUE
     max_new_tokens: int = field(
@@ -295,10 +296,23 @@ class TrainingArguments(TA):
             )
         },
     )
-
+    wandb: bool = field(
+        default=True, 
+        metadata={
+            "help": (
+                "Logs to wandb if true"
+            )
+        },
+    )
+    ####################
     def __post_init__(self):
-        if self.train_dataset_names is not None:
-            self.train_dataset_names = self.train_dataset_names.split(" ")
+        if self.train_datasets is not None:
+            self.train_datasets = self.train_datasets.split(" ")
+
+        self.output_dir = os.path.join("./models", 
+                                       f"{os.path.basename(self.model_name_or_path)}-{'|'.join(self.train_datasets)}-lora-gas{self.gradient_accumulation_steps}-bs{self.per_device_train_batch_size}-{self.data_selection_unit}-{self.last_layers}-{self.zo_dim}_{self.mezo_topk}_{self.mezo_selection}-{self.max_steps}steps-seed{self.seed}"
+                                       )
+        
         # For multiple layers, separate by commas
         # Only take LoRA B as it is more important        
         if self.last_layers == "qkv_proj":
@@ -317,4 +331,12 @@ class TrainingArguments(TA):
                 self.last_layers.append(f'{self.last_layer_index}.mlp.{last_layer}')
             else:
                 self.last_layers.append(f'{self.last_layer_index}.self_attn.{last_layer}')
+                
+                
+
+
+        self.report_to="wandb"
+        self.run_name = self.output_dir.split('/')[-1]
+        
+        self.remove_unused_columns=False # wee need "source"
         super().__post_init__()

@@ -9,15 +9,15 @@ PERCENTAGE=1 # percentage of the full data to train, you can specify the trainin
 for DATA_SEED in 0
 do
     # Training
-    GAS=8 # gradient accumulation steps
-    DEVICE_BS=4  # batch size per device
+    GAS=4 # gradient accumulation steps
+    DEVICE_BS=8  # batch size per device
     RANK=128
     ALPHA=512
     SAVE_STRATEGY=steps # epoch, steps
     SAVE_STEPS=256
-    MAX_STEPS=5 # total number of gradient updates
+    MAX_STEPS=1024 # total number of gradient updates
     MAX_LENGTH=512
-    DROPOUT=True
+    DROPOUT=False
     # Selection
     SELECTION_METHOD=submodlib  # submodlib, weightedsubmodlib, none
     BATCH_RATIO=0.5

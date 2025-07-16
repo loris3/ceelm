@@ -91,7 +91,7 @@ class DecomposedOlmo2():
 
         # inputs_embeds = self.transformer.embed_dropout(inputs_embeds)
         hidden_states = inputs_embeds
-        hidden_states = hidden_states.to(dtype=torch.bfloat16)
+        hidden_states = hidden_states#.to(dtype=torch.bfloat16)
 
         position_embeddings = self.transformer.rotary_emb(hidden_states, position_ids)
 

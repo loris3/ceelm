@@ -1,11 +1,8 @@
-import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
 
 import torch
 
-
-logger = logging.getLogger(__name__)
 
 
 def none_or_str(value):
