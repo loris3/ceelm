@@ -29,11 +29,12 @@ class LORAEngineGeneration(object):
                 # base_path,
                 # project_path,
                 # dataset_name='math_with_reason',
-                device="cuda"):
+                device="cuda",proj_dim=512):
         # self.base_path = base_path
         # self.project_path = project_path
         # self.adapter_path = f"{self.project_path}/models/math_without_reason_13bf"
         # self.dataset_name = dataset_name
+        self.proj_dim = proj_dim
         self.device=device
         self.model = model
         
@@ -53,7 +54,10 @@ class LORAEngineGeneration(object):
                 break
         print("self.grad_dim",self.grad_dim)
         
-        self.projector = CudaProjector(grad_dim=self.grad_dim, proj_dim=512,seed=42, proj_type=ProjectionType.rademacher,device=self.device, max_batch_size=8)
+        if self.grad_dim <= self.proj_dim:
+            self.projector = NoOpProjector()
+        else:
+            self.projector = CudaProjector(grad_dim=self.grad_dim, proj_dim=self.proj_dim,seed=42, proj_type=ProjectionType.rademacher,device=self.device, max_batch_size=8)
         # self.projector = NoOpProjector()
         # self.load_pretrained_network()
         # self.load_datasets()
@@ -108,7 +112,7 @@ class LORAEngineGeneration(object):
 
         return tokenized_datasets, collate_fn
 
-    def compute_gradient(self, tokenized_dataset, collate_fn):
+    def compute_gradient_slow(self, tokenized_dataset, collate_fn):
             
             dataloader = DataLoader(tokenized_dataset, shuffle=False, collate_fn=collate_fn, batch_size=1)
              
@@ -138,3 +142,51 @@ class LORAEngineGeneration(object):
                 # del grad_dict
             return grad_dicts
 
+    def _compute_gradient_batch(self, dataloader, rank):
+        device = "cuda:0"#f"cuda:{rank % torch.cuda.device_count()}"
+        self.model.to(device)
+        self.model.eval()
+        grad_dicts = []
+
+        for row in tqdm(dataloader, position=rank, desc=f"Worker {rank}"):
+            self.model.zero_grad()
+            row['labels'] = row['input_ids']
+            row.to(self.device)
+            outputs = self.model(**row)
+            loss = outputs.loss
+            loss.backward()
+            grad_dict = {}
+            for k, v in self.model.named_parameters():
+                if 'lora_A' in k:
+                    grad = v.grad
+                    with torch.no_grad():
+                        grad_dict[k] = self.projector.project(grad.contiguous(), model_id=0).cpu()
+                elif 'lora_B' in k:
+                    grad = v.grad.T
+                    with torch.no_grad():
+                        grad_dict[k] = self.projector.project(grad.contiguous(), model_id=0).cpu()
+            grad_dicts.append(grad_dict)
+        return grad_dicts
+
+    def compute_gradient(self, tokenized_dataset, collate_fn):
+        def batch_map(batch, rank):
+            if rank is None:
+                rank = 0
+            batch_list = [{k: v[i] for k, v in batch.items()} for i in range(len(batch["input_ids"]))]
+            dataloader = DataLoader(batch_list, shuffle=False, collate_fn=collate_fn, batch_size=1)
+            gradients =  self._compute_gradient_batch(dataloader, rank)
+            return {"gradients": gradients}
+        gradient_lists = tokenized_dataset.map(
+            batch_map,
+            batched=True,
+            # batch_size=batch_size,
+            with_rank=True,
+            num_proc=torch.cuda.device_count()*4
+        )
+        
+     
+        grad_dicts = []
+        for item in gradient_lists:
+            grad_dicts.extend(item["gradients"])
+
+        return grad_dicts

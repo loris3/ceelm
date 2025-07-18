@@ -16,13 +16,13 @@ train_dataset = load_dataset("allenai/tulu-v2-sft-mixture", split="train[0:200]"
 test_dataset = load_dataset("allenai/tulu-v2-sft-mixture", split="train[0:100]")
 
 
-estimator = LESSEstimator(base_model_path, adapter_path, train_dataset, test_dataset)
+estimator_less = LESSEstimator(base_model_path, adapter_path, train_dataset, test_dataset)
 
 
-print((estimator.influence_estimate))
+print((estimator_less.influence_estimate))
 
 
-# estimator = DataInfEstimator(base_model_path, adapter_path, train_dataset, test_dataset)
+estimator_datainf = DataInfEstimator(base_model_path, adapter_path, train_dataset, test_dataset)
 
 
-# print((estimator.influence_estimate))
+print((estimator_datainf.influence_estimate))

@@ -14,52 +14,61 @@ if not logger.hasHandlers():
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 class DataInfEstimator(BaseEstimator):
-    def __init__(self, model_path, adapter_path, train_dataset, test_dataset, tokenizer_path=None, device="cuda"):
-        super().__init__(model_path, adapter_path, train_dataset, test_dataset, tokenizer_path, device)
+    def __init__(self, model_path, adapter_path, train_dataset, test_dataset, tokenizer_path=None, device="cuda", proj_dim=8192,fast_implementation=True):
+        super().__init__(model_path, adapter_path, train_dataset, test_dataset, tokenizer_path, device,
+                         param_list=[proj_dim,fast_implementation],
+                         )
+        self.proj_dim = proj_dim
+        self.fast_implementation = fast_implementation
         self.run_cached()    
+    def get_config_string(self):
+        return f"{self.__class__.__name__}: fast_implementation={str(self.fast_implementation)}"
     def run(self):
-        self.lora_engine = LORAEngineGeneration(self.model, self.device)
+        self.lora_engine = LORAEngineGeneration(self.model, self.device, self.proj_dim)
         self.lora_engine.tokenizer = self.tokenizer
         self.influence_engine = IFEngineGeneration()
         
         self.get_gradients()
         logger.info(f"Preprocessing gradients...")
         self.influence_engine.preprocess_gradients(self.tr_grad_dict, self.test_grad_dict)
-        logger.info(f"Computing HVPs...")
-        self.influence_engine.compute_hvps()
-        logger.info(f"Computing IF...")
-        self.influence_engine.compute_IF()
-        self.influence_estimate = self.influence_engine.IF_dict["proposed"]
+        
+        
+        if self.fast_implementation:
+            logger.info(f"Computing HVPs...")
+            self.influence_engine.compute_hvps()
+            logger.info(f"Computing IF...")
+            self.influence_engine.compute_IF()
+        else:
+            logger.info(f"Computing HVPs (slow)...")
+            self.influence_engine.compute_hvps_slow()
+            logger.info(f"Computing IF (slow)...")
+            self.influence_engine.compute_IF_slow()
+        
+        
+        self.influence_estimate = -self.influence_engine.IF_dict["proposed"]
         self.save()
         
     def get_gradients(self):
-        tokenized_datasets = {
-            "train": tokenize_dataset(self.train_dataset, self.tokenizer),
-            "test": tokenize_dataset(self.test_dataset, self.tokenizer),
-        }
-
         collate_fn = lambda x: self.tokenizer.pad(x, padding="longest", return_tensors="pt")
-        grad_dicts = {}
 
-        os.makedirs('./cache/datasets', exist_ok=True)
-
-        for split in ["train", "test"]:
-            fingerprint = tokenized_datasets[split]._fingerprint
-            cache_path = os.path.join("./cache/gradients/datainf", f"{fingerprint}.pkl")
-
-            if os.path.exists(cache_path):
-                logger.info(f"Loading {split} gradients from {cache_path}")
-                with open(cache_path, "rb") as f:
-                    grad_dicts[split] = pickle.load(f)
+        tokenized_train_dataset = tokenize_dataset(self.train_dataset, self.tokenizer)
+        try:
+            self.tr_grad_dict = self.load_gradients(tokenized_train_dataset)
+        except (FileNotFoundError, RuntimeError):
+            if self.fast_implementation:
+                self.tr_grad_dict = self.lora_engine.compute_gradient(tokenized_train_dataset, collate_fn)
             else:
-                logger.info(f"No cache for {split}. Computing gradients...")
-                grads = self.lora_engine.compute_gradient(tokenized_datasets[split], collate_fn)
-                grad_dicts[split] = grads
-                with open(cache_path, "wb") as f:
-                    pickle.dump(grad_dicts[split], f)
-                    logger.info(f"Saved {split} gradients to {cache_path}")
-
-        self.tr_grad_dict = grad_dicts["train"]
-        self.test_grad_dict = grad_dicts["test"]
-       
-
+                self.tr_grad_dict = self.lora_engine.compute_gradient_slow(tokenized_train_dataset, collate_fn)
+            self.store_gradients(tokenized_train_dataset, self.tr_grad_dict)
+            
+        tokenized_test_dataset = tokenize_dataset(self.test_dataset, self.tokenizer)
+        try:
+            self.test_grad_dict = self.load_gradients(tokenized_test_dataset)
+        except (FileNotFoundError, RuntimeError):
+            if self.fast_implementation:
+                self.test_grad_dict = self.lora_engine.compute_gradient(tokenized_test_dataset, collate_fn)
+            else: 
+                self.test_grad_dict = self.lora_engine.compute_gradient_slow(tokenized_test_dataset, collate_fn)
+            self.store_gradients(tokenized_test_dataset, self.test_grad_dict)
+            
+    
