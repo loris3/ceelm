@@ -63,6 +63,7 @@ class BaseEstimator(ABC):
         return torch.load(outp_path)
         
     def save(self):
+        self.influence_estimate.columns = self.train_dataset["indices"]
         self.influence_estimate.to_parquet(self.influence_estimate_path)
         logger.warning(f"Saved influence estimate to disk")
     def run_cached(self):
@@ -75,3 +76,4 @@ class BaseEstimator(ABC):
                 logger.error(f"Recomputing due to unexpected error while loading influence estimate: {e}", exc_info=True)
             self.init_model_and_tokenizer()
             self.run()
+            

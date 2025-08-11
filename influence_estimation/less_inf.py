@@ -29,7 +29,9 @@ class LESSEstimator(BaseEstimator):
         self.adam_optimizer_state = torch.load(self.optimizer_path, map_location="cpu")["state"]
   
 
-        self.run_cached()    
+        self.run_cached()  
+        if hasattr(self, 'model'):
+            del self.model
     def get_config_string(self):
         return f"{self.__class__.__name__}: normalize={str(self.normalize)}"
   
@@ -46,7 +48,7 @@ class LESSEstimator(BaseEstimator):
         except (FileNotFoundError, RuntimeError):
             self.get_gradients(self.test_dataset, gradient_type="sgd")
             grads_test = self.load_gradients(self.test_dataset)
-
+        
         self.influence_estimate = pd.DataFrame(torch.einsum('nd,md->mn', grads_train, grads_test).numpy())
         self.save()
 
@@ -110,7 +112,7 @@ class LESSEstimator(BaseEstimator):
             merged_data = normalize(merged_data, dim=1)
         
         self.store_gradients(dataset, merged_data)
-
+        
     
 
 

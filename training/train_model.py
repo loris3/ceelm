@@ -12,7 +12,7 @@ logging.basicConfig(
 from pathlib import Path
 import torch
 
-from training.custom_olmo import DecomposedOlmo2
+from coreset_trainer.custom_olmo import DecomposedOlmo2
 from transformers import (
     set_seed,
     AutoModelForCausalLM,

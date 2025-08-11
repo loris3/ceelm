@@ -1,12 +1,17 @@
-# python3 -m accelerate.commands.launch finetune.py
+# python3 -m accelerate.commands.launch train.py
 import wandb 
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, DataCollatorForLanguageModeling
+from coreset_trainer.custom_olmo import DecomposedOlmo2
+
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling
 from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, TaskType, PeftModel
-from torch.optim import AdamW
 
+from coreset_trainer.trainer import CoresetTrainer
 import os
 import torch
+
+import argparse
+
 def tokenize_dataset(dataset, tokenizer):
     def tokenize(example):
         text = tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)
@@ -16,11 +21,17 @@ def tokenize_dataset(dataset, tokenizer):
 
 
 if __name__ == "__main__":
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ratio", type=float, default=0.5, help="Ratio parameter for coreset")
+    args = parser.parse_args()
+    
+    
     base_model_path = "allenai/OLMo-2-0425-1B"
     train_dataset_path = "allenai/tulu-v2-sft-mixture"
     
 
-    ft_model_name = os.path.basename(base_model_path) + "_" + os.path.basename(train_dataset_path)
+    ft_model_name = os.path.basename(base_model_path) + "_" + os.path.basename(train_dataset_path) + "_" + str(args.ratio).replace(".","p")
    
 
     os.environ["WANDB_PROJECT"] = "cfe_finetuning"
@@ -51,13 +62,29 @@ if __name__ == "__main__":
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
-    train_dataset = load_dataset(train_dataset_path, split="train")
+    if hasattr(model, "enable_input_require_grads"):
+            model.enable_input_require_grads()
+    else:
+            def make_inputs_require_grad(module, input, output):
+                output.requires_grad_(True)
+            model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
 
+    # if training_args.data_selection_unit == "mezo" and training_args.efficient_mezo:
+    model.decomposer = DecomposedOlmo2(model)
+    train_dataset = load_dataset(train_dataset_path, split="train[0:75]")
+    
+    def add_index(example, idx):
+        example["indices"] = idx
+        return example
+
+    
+
+    print(train_dataset)
 
 
     tokenized_train = tokenize_dataset(train_dataset, tokenizer)
-
+    tokenized_train = tokenized_train.map(add_index, with_indices=True, num_proc=10)
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
     training_args = TrainingArguments(
@@ -74,11 +101,12 @@ if __name__ == "__main__":
         report_to="wandb"
     )
 
-    trainer = Trainer(
+    trainer = CoresetTrainer(
         model=model,
+        ratio=args.ratio,
         args=training_args,
         train_dataset=tokenized_train,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         data_collator=data_collator
     )
 

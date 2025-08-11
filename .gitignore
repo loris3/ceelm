@@ -20,3 +20,5 @@ dataset/*
 *.err
 *.sbatch
 *.sh
+tmp/*
+*.sbatch

@@ -12,8 +12,10 @@ class DecomposedOlmo2():
     """
     def __init__(self, model):
         # Get the transformer part
-        self.transformer = model.model
+        self.transformer = model.model.model
         self.lm_head = model.lm_head
+        # print(model) 
+        # print(model.model.model.layers) 
         # self.original_forward = model.forward
         
         # Store references to transformer components
