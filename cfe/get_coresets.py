@@ -137,7 +137,7 @@ class Selector():
             print("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
             traceback.print_exc()
     def compute_gradient(self, tokenized_dataset, collate_fn):
-        partial_results_dir = os.path.join("./cache/gradients/partial", tokenized_dataset._fingerprint)
+        partial_results_dir = os.path.join("./cache/gradients/partial", tokenized_dataset._fingerprint, self.base_model_path)
         
         def batch_map(batch, rank):
             if rank is None:

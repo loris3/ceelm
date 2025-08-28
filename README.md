@@ -1,0 +1,1 @@
+1. To fine-tune all model-dataset combinations: `finetune.sbatch`

@@ -27,6 +27,8 @@ import shutil
 class LORAEngineGeneration(object):
     def __init__(self, 
                 model,
+                model_path,
+                param_string,
                 # base_path,
                 # project_path,
                 # dataset_name='math_with_reason',
@@ -38,7 +40,8 @@ class LORAEngineGeneration(object):
         self.proj_dim = proj_dim
         self.device=device
         self.model = model
-        
+        self.model_path = model_path
+        self.param_string = param_string
         # set self.grad_dim
         dummy_input = torch.tensor([[0,0,0,0]]).to(self.device)
         self.model.eval()
@@ -46,6 +49,7 @@ class LORAEngineGeneration(object):
         outputs = self.model(input_ids=dummy_input, labels=dummy_input)
         loss = outputs.loss
         loss.backward()
+        
         for k, v in self.model.named_parameters():
             if 'lora_A' in k and v.grad is not None:
                 self.grad_dim = v.grad.cpu().shape[-1]
@@ -143,7 +147,7 @@ class LORAEngineGeneration(object):
                 # del grad_dict
             return grad_dicts
 
-    def _compute_gradient_batch(self, dataloader, rank, partial_results_dir):
+    def _compute_gradient_batch(self, dataloader, rank, partial_results_dir,  dataset_name, dataset_split):
         device = f"cuda:{rank % torch.cuda.device_count()}"
         self.model.to(device)
         self.model.eval()
@@ -175,15 +179,21 @@ class LORAEngineGeneration(object):
         torch.save(grads, save_path)
         # return {"_": [None] * len(dataloader)}
 
-    def compute_gradient(self, tokenized_dataset, collate_fn):
-        partial_results_dir = os.path.join("./cache/gradients/partial", tokenized_dataset._fingerprint)
-        
+    def compute_gradient(self, tokenized_dataset, dataset_name, dataset_split, collate_fn):
+       
+        partial_results_dir = os.path.join(
+            "./cache/gradients/partial",
+            self.__class__.__name__,
+            "partial",
+             self.param_string, os.path.basename(self.model_path),
+            "_".join([dataset_name, dataset_split])
+        )
         def batch_map(batch, rank):
             if rank is None:
                 rank = 0
             batch_list = [{k: v[i] for k, v in batch.items()} for i in range(len(batch["input_ids"]))]
             dataloader = DataLoader(batch_list, shuffle=False, collate_fn=collate_fn, batch_size=1)
-            self._compute_gradient_batch(dataloader, rank, partial_results_dir)
+            self._compute_gradient_batch(dataloader, rank, partial_results_dir,  dataset_name, dataset_split)
             return {"_": [None] * len(batch_list)}
         
         
@@ -191,11 +201,10 @@ class LORAEngineGeneration(object):
         tokenized_dataset.map(
             batch_map,
             batched=True,
-            # batch_size=batch_size,
             with_rank=True,
+            batch_size=(len(tokenized_dataset) + torch.cuda.device_count() - 1) // torch.cuda.device_count(),
             num_proc=torch.cuda.device_count(),
-           # remove_columns=["input_ids","attention_mask"],
-            # keep_in_memory=True
+
         )
         
         

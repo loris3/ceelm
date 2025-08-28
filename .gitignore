@@ -18,7 +18,9 @@ cache/*
 results/*
 dataset/*
 *.err
-*.sbatch
+
 *.sh
 tmp/*
-*.sbatch
+
+models_test/*
+trainer_output/*

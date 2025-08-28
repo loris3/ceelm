@@ -12,10 +12,10 @@ import torch
 
 import argparse
 
-def tokenize_dataset(dataset, tokenizer):
+def tokenize_dataset(dataset, tokenizer, max_lenght=2048):
     def tokenize(example):
         text = tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)
-        return tokenizer(text, truncation=True, padding="max_length", max_length=2048)
+        return tokenizer(text, truncation=True, padding="max_length", max_length=max_lenght)
     return dataset.map(tokenize, batched=True, remove_columns=dataset.column_names)
 
 

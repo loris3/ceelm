@@ -117,10 +117,10 @@ class IFEngineGeneration(object):
 
             return val_id, val_hvp_dict
 
-        batch_size = len(self.val_grad_dict) // (torch.get_num_threads() // 2)
+        batch_size = len(self.val_grad_dict) // (torch.get_num_threads() // 4)
         print("batch_size", batch_size)
         futures = []
-        with ThreadPoolExecutor(max_workers=(torch.get_num_threads() // 2)) as executor:
+        with ThreadPoolExecutor(max_workers=(torch.get_num_threads() // 4)) as executor:
             for val_id in self.val_grad_dict:
                 futures.append(executor.submit(compute_hvp_for_val_id, val_id, batch_size))
 
