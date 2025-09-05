@@ -9,7 +9,7 @@
 # # dgx-h100-em2
 # # SBATCH --container-save=/srv/home/users/loriss21cs/cfe/cfe.sqsh
 #SBATCH --container-mount-home 
-#SBATCH --mem=64G
+#SBATCH --mem=40G
 #SBATCH --cpus-per-task=24  
 #SBATCH --gres=gpu:2
 #SBATCH --time=0-7:59:00

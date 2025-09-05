@@ -1,3 +1,6 @@
+import multiprocessing
+multiprocessing.set_start_method("spawn", force=True)
+
 import os
 
 
@@ -68,14 +71,11 @@ def main():
     
     estimators = [
         LESSEstimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split),
-        LESSEstimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split, normalize=False),
+        # LESSEstimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split, normalize=False),
         DataInfEstimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split)
     
     ]
     for estimator in estimators:
         print(estimator.get_config_string)
 if __name__ == "__main__":
-    from multiprocess import set_start_method
-    set_start_method("spawn")
-
     main()

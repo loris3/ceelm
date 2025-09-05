@@ -20,7 +20,7 @@ df -h
 # torchrun --nnodes 1  
 python3 -m accelerate.commands.launch finetune.py \
   --base_model EleutherAI/pythia-31m \
-  --train_dataset allenai/tulu-v2-sft-mixture \
+  --train_dataset loris3/tulu-v2-sft-mixture \
   --train_split train \
   --output_dir ./models/pythia-31m_tulu-v2-sft-mixture_train \
   --per_device_train_batch_size 4 \
@@ -36,8 +36,8 @@ python3 -m accelerate.commands.launch finetune.py \
 
 python3 -m accelerate.commands.launch finetune.py \
   --base_model allenai/OLMo-2-0425-1B \
-  --train_dataset allenai/tulu-v2-sft-mixture \
-  --train_split train[0%:10%] \
+  --train_dataset loris3/tulu-v2-sft-mixture \
+  --train_split train \
   --output_dir ./models/OLMo-2-0425-1B_tulu-v2-sft-mixture_train \
   --per_device_train_batch_size 4 \
   --gradient_accumulation_steps 8 \

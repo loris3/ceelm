@@ -6,7 +6,7 @@ import logging
 import torch
 import pandas as pd
 import json 
-
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 if not logger.hasHandlers():
@@ -29,6 +29,7 @@ class BaseEstimator(ABC):
         self.gradient_cache = {}
         
         self.gradient_cache_dir = os.path.join("./cache/gradients/full", self.__class__.__name__, self.param_string, os.path.basename(self.model_path))
+
         os.makedirs(self.gradient_cache_dir, exist_ok=True)
         
         self.influence_estimate_path = os.path.join(
@@ -40,7 +41,9 @@ class BaseEstimator(ABC):
                 "_".join([self.test_dataset_name, self.test_dataset_split]),   
                 "estimate.parquet"   
             ) 
-
+        print("influence_estimate_path:", self.influence_estimate_path)
+        print("dirname:", os.path.dirname(self.influence_estimate_path))
+        print("exists:", os.path.exists(os.path.dirname(self.influence_estimate_path)))
         os.makedirs(os.path.dirname(self.influence_estimate_path), exist_ok=True)
            
         
@@ -73,14 +76,29 @@ class BaseEstimator(ABC):
     @abstractmethod
     def get_config_string(self):
         pass
-    def store_gradients(self, dataset, dataset_name, dataset_split, gradients):
-        outp_path = os.path.join(self.gradient_cache_dir, dataset_name, dataset_split, "gradients.pt")
-        os.makedirs(os.path.dirname(outp_path), exist_ok=True)
-        torch.save(gradients, outp_path)
+
+      
+            
+    def load_gradients(self, dataset, dataset_name, dataset_split, max_workers=8):
+        base_path = os.path.join(self.gradient_cache_dir, dataset_name, dataset_split)
+        if not os.path.exists(base_path):
+            raise FileNotFoundError(f"No gradients found at {base_path}")
+
+        grad_files = sorted([f for f in os.listdir(base_path) if f.endswith(".pt")])
+
+        def load_grad(file_name):
+            return torch.load(os.path.join(base_path, file_name))
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            list_of_dicts = list(executor.map(load_grad, grad_files))
+
+        # merge
+        gradients_dict = {}
+        for d in list_of_dicts:
+            gradients_dict.update(d)
         
-    def load_gradients(self, dataset, dataset_name, dataset_split):
-        outp_path = os.path.join(self.gradient_cache_dir, dataset_name, dataset_split, "gradients.pt")
-        return torch.load(outp_path)
+        return gradients_dict
+
         
     def save(self):
         print("self.train_dataset_name",self.train_dataset_name)
@@ -103,6 +121,21 @@ class BaseEstimator(ABC):
     
     
     def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
-        if (dataset_name, dataset_split) not in self.gradient_cache:
-            self.gradient_cache[(dataset_name, dataset_split)] = self.load_gradients(dataset, dataset_name, dataset_split)
-        return self.gradient_cache[(dataset_name, dataset_split)][train_instance_idx]
+
+        grad_path = os.path.join(
+            self.gradient_cache_dir,
+            os.path.basename(dataset_name),
+            dataset_split,
+            f"gradient_{train_instance_idx}.pt"
+        )
+        
+        if not os.path.exists(grad_path):
+            raise FileNotFoundError(f"Gradient file not found: {grad_path}")
+        return torch.load(grad_path)
+def store_gradient(gradient_cache_dir, dataset_name, dataset_split, gradient_dict):
+    base_path = os.path.join(gradient_cache_dir, dataset_name, dataset_split)
+    os.makedirs(base_path, exist_ok=True)
+
+    grad_path = os.path.join(base_path, f"gradient_{list(gradient_dict.keys())[0]}.pt")
+    # save as single-item dict {idx: grad}
+    torch.save(gradient_dict, grad_path)

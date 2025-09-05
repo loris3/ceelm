@@ -17,6 +17,8 @@ from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, TaskType, PeftModel
 
 
+CHAT_TEMPLATE = "{{ bos_token }}{% for message in messages %}{% if message['role'] == 'system' %}{{ '<|system|>\n' + message['content'] + '\n' }}{% elif message['role'] == 'user' %}{{ '<|user|>\n' + message['content'] + '\n' }}{% elif message['role'] == 'assistant' %}{% if not loop.last %}{{ '<|assistant|>\n'  + message['content'] + eos_token + '\n' }}{% else %}{{ '<|assistant|>\n'  + message['content'] + eos_token }}{% endif %}{% endif %}{% if loop.last and add_generation_prompt %}{{ '<|assistant|>\n' }}{% endif %}{% endfor %}"
+
 @dataclass
 class ModelArguments:
     base_model: str = field(default="allenai/OLMo-2-0425-1B")
@@ -35,7 +37,7 @@ class CustomTrainingArguments(TrainingArguments):
     wandb_project: Optional[str] = field(default="cfe_finetuning")
     ddp_find_unused_parameters: Optional[bool] = field(default=False)
 
-def tokenize_dataset(dataset, tokenizer,max_length=4096, num_proc=32):
+def tokenize_dataset(dataset, tokenizer,max_length=4096, num_proc=32, re_index=True):
     def tokenize(example):
         text = tokenizer.apply_chat_template(
             example["messages"], tokenize=False, add_generation_prompt=False
@@ -46,7 +48,14 @@ def tokenize_dataset(dataset, tokenizer,max_length=4096, num_proc=32):
             padding="max_length",
             max_length=max_length
         )
-    return dataset.map(tokenize, batched=True, remove_columns=dataset.column_names, num_proc=num_proc)
+
+    tokenized_dataset = dataset.map(tokenize, batched=True, remove_columns=[c for c in dataset.column_names if c != "indices"], num_proc=num_proc)
+    def add_index(example, idx):
+        example["indices"] = idx
+        return example
+    if re_index:
+        tokenized_dataset =  tokenized_dataset.map(add_index, with_indices=True, num_proc=10)
+    return tokenized_dataset
 
 
 if __name__ == "__main__":
@@ -58,7 +67,7 @@ if __name__ == "__main__":
     os.environ["WANDB_NAME"] = ft_model_name
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.base_model)
-    tokenizer.chat_template = """{{ bos_token }}{% for message in messages %}{% if message['role'] == 'system' %}{{ '<|system|>\n' + message['content'] + '\n' }}{% elif message['role'] == 'user' %}{{ '<|user|>\n' + message['content'] + '\n' }}{% elif message['role'] == 'assistant' %}{% if not loop.last %}{{ '<|assistant|>\n'  + message['content'] + eos_token + '\n' }}{% else %}{{ '<|assistant|>\n'  + message['content'] + eos_token }}{% endif %}{% endif %}{% if loop.last and add_generation_prompt %}{{ '<|assistant|>\n' }}{% endif %}{% endfor %}"""
+    tokenizer.chat_template = CHAT_TEMPLATE
     if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
@@ -68,7 +77,7 @@ if __name__ == "__main__":
         low_cpu_mem_usage=True   
     )
    
-    model.resize_token_embeddings(len(tokenizer))
+    # model.resize_token_embeddings(len(tokenizer))
     
     lora_config = LoraConfig(
         r=model_args.lora_r,

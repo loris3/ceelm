@@ -32,7 +32,7 @@ class LORAEngineGeneration(object):
                 # base_path,
                 # project_path,
                 # dataset_name='math_with_reason',
-                device="cuda",proj_dim=512):
+                device="cuda",proj_dim=2**13):
         # self.base_path = base_path
         # self.project_path = project_path
         # self.adapter_path = f"{self.project_path}/models/math_without_reason_13bf"
@@ -50,176 +50,140 @@ class LORAEngineGeneration(object):
         loss = outputs.loss
         loss.backward()
         
-        for k, v in self.model.named_parameters():
-            if 'lora_A' in k and v.grad is not None:
-                self.grad_dim = v.grad.cpu().shape[-1]
-                break
-            elif 'lora_B' in k and v.grad is not None:
-                self.grad_dim = v.grad.cpu().T.shape[-1]
-                break
-        print("self.grad_dim",self.grad_dim)
         
-        if self.grad_dim <= self.proj_dim:
-            self.projector = NoOpProjector()
-        else:
-            self.projector = CudaProjector(grad_dim=self.grad_dim, proj_dim=self.proj_dim,seed=42, proj_type=ProjectionType.rademacher,device=self.device, max_batch_size=8)
-        # self.projector = NoOpProjector()
-        # self.load_pretrained_network()
-        # self.load_datasets()
+        # we divide the total projection budget (self.proj_dim) among LoRA parameters proportional to their gradient size
+        # while ensuring multiple of 512 for TRAK kernel
+        self.param_dims = {}
+        self.total_grad_dim = 0
 
-    # def load_pretrained_network(self):
-    #     # setup tokenizer
-    #     self.tokenizer = LlamaTokenizer.from_pretrained(self.base_path)
-    #     self.tokenizer.padding_side = "right"
-    #     self.tokenizer.pad_token = self.tokenizer.eos_token
-    #     self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+        # Collect gradient dimensions
+        for name, param in model.named_parameters():
+            grad = param.grad
+            if grad is None:
+                continue
+            if 'lora_A' in name:
+                dim = grad.shape[-1]
+            elif 'lora_B' in name:
+                dim = grad.T.shape[-1] if grad.ndim >= 2 else grad.shape[-1]
+            else:
+                continue
+            self.param_dims[name] = dim
+            self.total_grad_dim += dim
 
-    #     # load a base model
-    #     quantization_config = BitsAndBytesConfig(load_in_8bit=True, load_in_4bit=False)
-    #     base_model = LlamaForCausalLM.from_pretrained(
-    #         self.base_path,
-    #         quantization_config=quantization_config,
-    #         torch_dtype=torch.bfloat16,
-    #         offload_folder="offload",
-    #         offload_state_dict=True,
-    #     )
+        self.param_proj_dim = {}
+        self.param_projectors = {}
 
-    #     # load a pre-trained model.
-    #     self.model = PeftModel.from_pretrained(base_model, self.adapter_path, is_trainable=True)
-    #     self.finetuned_config = LoraConfig.from_pretrained(pretrained_model_name_or_path=self.adapter_path)
 
-    # def load_datasets(self):
-    #     self.train_dataset = Dataset.load_from_disk(f"{self.project_path}/datasets/{self.dataset_name}_train.hf").shuffle(seed=42).select(range(100))
-    #     self.validation_dataset = Dataset.load_from_disk(f"{self.project_path}/datasets/{self.dataset_name}_test.hf").shuffle(seed=42).select(range(100))
+        for name, dim in self.param_dims.items():
 
-    # def create_tokenized_datasets(self):
-    #     tokenize_func = lambda x: self.tokenizer(
-    #         x["prompt"], truncation=True, padding=True, max_length=128, return_tensors="pt" # text should be more appropritate
-    #     ).to(self.device)
-
-    #     if 'with_reason' in self.dataset_name:
-    #         column_list=["text", "answer", "variation", "prompt", "reason"]
-    #     else:
-    #         column_list=["text", "answer", "variation", "prompt"]
-
-    #     tokenized_datasets=dict()
-    #     tokenized_datasets["train"] = self.train_dataset.map(
-    #         tokenize_func,
-    #         batched=True,
-    #         remove_columns=column_list,
-    #     )
-    #     tokenized_datasets["validation"] = self.validation_dataset.map(
-    #         tokenize_func,
-    #         batched=True,
-    #         remove_columns=column_list,
-    #     )
-    #     collate_fn = lambda x: self.tokenizer.pad(x, padding="longest", return_tensors="pt")
-
-    #     return tokenized_datasets, collate_fn
-
-    def compute_gradient_slow(self, tokenized_dataset, collate_fn):
+            proj_dim = min(dim, int(self.proj_dim * dim / self.total_grad_dim))
             
-            dataloader = DataLoader(tokenized_dataset, shuffle=False, collate_fn=collate_fn, batch_size=1)
-             
-            self.model.eval()
-            grad_dicts = {}
-            
-            for step, batch in enumerate(tqdm(dataloader)):
-                self.model.zero_grad()
-                batch['labels'] = batch['input_ids']
-                batch.to(self.device)
-                outputs = self.model(**batch)
-                loss = outputs.loss
-                loss.backward()
+            if proj_dim <= 512:
+                self.param_projectors[name] = NoOpProjector()
+                proj_dim = dim  # keep original dimension for total sum
+            else:
+                proj_dim = max(512, round(proj_dim / 512) * 512)
+                self.param_projectors[name] = CudaProjector(
+                    grad_dim=dim,
+                    proj_dim=proj_dim,
+                    seed=42,
+                    proj_type=ProjectionType.rademacher,
+                    device=self.device,
+                    max_batch_size=8
+                )
 
-                grad_dict = {}
-                for k, v in self.model.named_parameters():
-                    if 'lora_A' in k:
-                        grad = v.grad
-                        with torch.no_grad():
-                            grad_dict[k] = self.projector.project(grad.contiguous(), model_id=0).cpu()
-                    elif 'lora_B' in k:
-                        grad = v.grad.T
-                        with torch.no_grad():
-                            grad_dict[k] = self.projector.project(grad.contiguous(), model_id=0).cpu()
+            self.param_proj_dim[name] = proj_dim
 
-                grad_dicts[step] = grad_dict
-                # del grad_dict
-            return grad_dicts
+        self.total_grad_dim_proj = sum(self.param_proj_dim.values())
 
-    def _compute_gradient_batch(self, dataloader, rank, partial_results_dir,  dataset_name, dataset_split):
-        device = f"cuda:{rank % torch.cuda.device_count()}"
-        self.model.to(device)
-        self.model.eval()
-        grads = []
+        print("self.proj_dim", self.proj_dim)
+        print("self.total_grad_dim_proj", self.total_grad_dim_proj)
+        print("self.total_grad_dim", self.total_grad_dim)
+        print("self.param_projectors", self.param_proj_dim, flush=True)
 
-        for row in tqdm(dataloader, position=rank, desc=f"Worker {rank}"):
-            self.model.zero_grad()
-            row['labels'] = row['input_ids']
-            row.to(device)
-            outputs = self.model(**row)
-            loss = outputs.loss
-            loss.backward()
-            grad_dict = {}
-            for k, v in self.model.named_parameters():
-                if 'lora_A' in k:
-                    grad = v.grad
-                    with torch.no_grad():
-                        grad_dict[k] = self.projector.project(grad, model_id=0).cpu()
-                elif 'lora_B' in k:
-                    grad = v.grad.T
-                    with torch.no_grad():
-                        grad_dict[k] = self.projector.project(grad, model_id=0).cpu()
-            grads.append(grad_dict)
-        print("store",flush=True)
-
-
-        os.makedirs(partial_results_dir, exist_ok=True)
-        save_path = os.path.join(partial_results_dir, f"grads_rank_{rank}.pt")
-        torch.save(grads, save_path)
-        # return {"_": [None] * len(dataloader)}
-
-    def compute_gradient(self, tokenized_dataset, dataset_name, dataset_split, collate_fn):
+        
+    def compute_gradient(self, tokenized_dataset, tokenizer, dataset_name, dataset_split_name, gradient_cache_dir):
        
-        partial_results_dir = os.path.join(
-            "./cache/gradients/partial",
-            self.__class__.__name__,
-            "partial",
-             self.param_string, os.path.basename(self.model_path),
-            "_".join([dataset_name, dataset_split])
-        )
-        def batch_map(batch, rank):
-            if rank is None:
-                rank = 0
-            batch_list = [{k: v[i] for k, v in batch.items()} for i in range(len(batch["input_ids"]))]
-            dataloader = DataLoader(batch_list, shuffle=False, collate_fn=collate_fn, batch_size=1)
-            self._compute_gradient_batch(dataloader, rank, partial_results_dir,  dataset_name, dataset_split)
-            return {"_": [None] * len(batch_list)}
+       
+       
+        print("compute_gradient", flush=True)
+
+        world_size = torch.cuda.device_count()
+        batch_size = (len(tokenized_dataset) + world_size - 1) // world_size
+        chunks = [
+            tokenized_dataset.select(range(i * batch_size, min((i + 1) * batch_size, len(tokenized_dataset))))
+            for i in range(world_size)
+        ]
         
-        
-        # we manually write to disk as .map is slow with large objects
-        tokenized_dataset.map(
+        fn = partial(
             batch_map,
-            batched=True,
-            with_rank=True,
-            batch_size=(len(tokenized_dataset) + torch.cuda.device_count() - 1) // torch.cuda.device_count(),
-            num_proc=torch.cuda.device_count(),
-
+     
+            tokenizer=tokenizer,
+            model=self.model,
+            param_projectors=self.param_projectors,
+            dataset_name=dataset_name,
+            dataset_split_name=dataset_split_name,
+            gradient_cache_dir=gradient_cache_dir
         )
         
+
         
+        with ProcessPoolExecutor(max_workers=world_size) as executor:
+            futures = []
+            for rank, chunk in enumerate(chunks):
+                batch_dict = {k: [ex[k] for ex in chunk] for k in chunk.column_names}
+                futures.append(executor.submit(fn, batch_dict, rank))
+            for f in futures:
+                f.result()
+
         
-        grads = []
+
+    
+        
+from functools import partial
+from ..estimator import store_gradient
 
 
-        files = [f for f in os.listdir(partial_results_dir) if f.startswith("grads_rank_") and f.endswith(".pt")]
-        files = sorted(files, key=lambda x: int(x.split('_')[-1].split('.')[0]))  # grads_rank_{rank}.pt
-       
-        assert len(files) == torch.cuda.device_count()
-        for fname in files:
-            path = os.path.join(partial_results_dir, fname)
-            grad_dict = torch.load(path)
-            grads.extend(grad_dict)
-            print("fname",fname)
-        # shutil.rmtree(partial_results_dir) 
-        return {i : grad for i, grad in enumerate(grads)}
+def batch_map(batch, rank, tokenizer, model, param_projectors, dataset_name, dataset_split_name, gradient_cache_dir):
+    
+        if rank is None:
+            rank = 0
+        batch_list = [{k: v[i] for k, v in batch.items()} for i in range(len(batch["input_ids"]))]
+        
+        collate_fn = lambda x: tokenizer.pad(x, padding="longest", return_tensors="pt")
+        dataloader = DataLoader(batch_list, shuffle=False, collate_fn=collate_fn, batch_size=1)
+        for grad_dict in _compute_gradient_batch(dataloader, rank, model, param_projectors):
+            store_gradient(gradient_cache_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict) 
+        
+        
+   
+    
+    
+def _compute_gradient_batch(dataloader, rank, model, param_projectors):
+    print("_compute_gradient_batch", flush=True)
+    device = f"cuda:{rank % torch.cuda.device_count()}"
+    model.to(device)
+    model.eval()
+    grad_dicts = []
+
+    for row in tqdm(dataloader, position=rank, desc=f"Worker {rank}"):
+        model.zero_grad()
+        row['labels'] = row['input_ids']
+        row.to(device)
+        outputs = model(**row)
+        loss = outputs.loss
+        loss.backward()
+        grad_dict = {}
+        for k, v in model.named_parameters():
+            grad = None
+            if k not in param_projectors:
+                continue
+            if 'lora_A' in k:
+                grad = v.grad
+               
+            elif 'lora_B' in k:
+                grad = v.grad.T
+            with torch.no_grad():
+                grad_dict[k] = param_projectors[k].project(grad.contiguous(), model_id=0).cpu()
+        grad_dicts.append({row["indices"][0].item(): grad_dict})
+    return grad_dicts

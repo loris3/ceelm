@@ -18,6 +18,6 @@ df -h
 
 
 
-python3 estimate_influence.py --base_model EleutherAI/pythia-31m --model_dir ./models/pythia-31m_tulu-v2-sft-mixture_train --train_dataset allenai/tulu-v2-sft-mixture --test_dataset allenai/tulu-v2-sft-mixture  --train_dataset_split=train[0:2000] --test_dataset_split=train[0:100]
+python3 estimate_influence.py --base_model EleutherAI/pythia-31m --model_dir ./models/pythia-31m_tulu-v2-sft-mixture_train --train_dataset loris3/tulu-v2-sft-mixture --test_dataset loris3/tulu-v2-sft-mixture  --train_dataset_split=train --test_dataset_split=test
 
-python3 estimate_influence.py --base_model allenai/OLMo-2-0425-1B --model_dir ./models/OLMo-2-0425-1B_tulu-v2-sft-mixture_train --train_dataset allenai/tulu-v2-sft-mixture --test_dataset allenai/tulu-v2-sft-mixture --train_dataset_split=train[0:2000] --test_dataset_split=train[0:100]
+# python3 estimate_influence.py --base_model allenai/OLMo-2-0425-1B --model_dir ./models/OLMo-2-0425-1B_tulu-v2-sft-mixture_train --train_dataset loris3/tulu-v2-sft-mixture --test_dataset loris3/tulu-v2-sft-mixture --train_dataset_split=train --test_dataset_split=test

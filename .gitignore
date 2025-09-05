@@ -24,3 +24,4 @@ tmp/*
 
 models_test/*
 trainer_output/*
+tmp_dataset_repo/*
