@@ -4,7 +4,7 @@ from influence_estimation.data_inf import DataInfEstimator
 from influence_estimation.less_inf import LESSEstimator
 
 from explanations import KRandom, TopKMostInfluential, TopKLeastInfluential, TopKMostOrthogonal, TopKLeastOrthogonal
-from linear_coders import KLTCoder, MSECoder, MSECoderNNLSL2, CosineCoder, MSECoderLemon, MSECoderElasticNet
+from linear_coders import MSECoderProjUSimp, KLTCoder, MSECoder, MSECoderNNLSL2, CosineCoder, MSECoderLemon, MSECoderElasticNet,MSECoderProjUSimpSparse,MSECoderProjUSimpSparseSoftThresh
 
 
 from datasets import load_dataset
@@ -17,7 +17,7 @@ test_dataset_split = "test"
 
 
 explanation_types = [KRandom, TopKMostInfluential, TopKLeastInfluential, TopKMostOrthogonal, TopKLeastOrthogonal]
-linear_coders = [KLTCoder,MSECoder,MSECoderElasticNet, CosineCoder, MSECoderLemon,MSECoderNNLSL2]# OptimizerCosineL1, ]
+linear_coders = [MSECoderProjUSimpSparse,MSECoderProjUSimp, KLTCoder,MSECoder,MSECoderElasticNet, CosineCoder, MSECoderLemon,MSECoderNNLSL2,MSECoderProjUSimpSparseSoftThresh]# OptimizerCosineL1, ]
 
 
 

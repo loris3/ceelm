@@ -16,7 +16,7 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
     
     test_grad = estimator.get_gradient(test_dataset, os.path.basename(test_dataset_name), test_dataset_split, explanation.dataset_idx).to(device)
 
-    train_grads = torch.stack(
+    A = torch.stack(
         [estimator.get_gradient(train_dataset, os.path.basename(train_dataset_name), train_dataset_split, i) for i in explanation.documents]
     ).to(device)
    
@@ -24,7 +24,7 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
     
 
     for linear_coder in linear_coders:
-        o = linear_coder(train_grads, test_grad, device=device, metadata_only=True)
+        o = linear_coder(A, test_grad, device=device, metadata_only=True)
         results_path = os.path.join(
             partial_results_dir,
             o.description,
@@ -35,7 +35,7 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
             print(f"Skipping {ii}: parquet file exists", flush=True)
             continue
         else:
-            o = linear_coder(train_grads, test_grad, device=device, metadata_only=False,
+            o = linear_coder(A, test_grad, device=device, metadata_only=False,
                              use_wandb=True, estimator_config=estimator.get_config_string())
             
 
@@ -47,7 +47,7 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
        
                 
                 
-            x_hat_method = o.train_grads.T @ o.factors
+            x_hat_method = o.A.T @ o.t
             
             
             
@@ -59,8 +59,8 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
             mse = torch.mean((test_grad - x_hat_method) ** 2)
             
             
-            l1 = torch.abs(o.factors).sum() 
-            l2 = torch.square(o.factors).sum()
+            l1 = torch.abs(o.t).sum() 
+            l2 = torch.square(o.t).sum()
             
 
                 
@@ -81,7 +81,7 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
                 l2.item(),
                 
               
-                o.factors.cpu().tolist(),
+                o.t.cpu().tolist(),
                 
                                 
                                 
@@ -103,7 +103,7 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
                 "l2",
                 
   
-                "factors"
+                "t"
             ])
             del o
             assert df.notnull().all().all(), "DataFrame contains missing values"
