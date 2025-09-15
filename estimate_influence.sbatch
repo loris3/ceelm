@@ -1,5 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Influence Estimation"
+#SBATCH --job-name="[CFE] Influence Estimation Sample"
+#SBATCH --dependency=afterany:237466
 
 #SBATCH --container-image=loris3/cfe:latest 
 #SBATCH --nodelist=dgx-h100-em2
@@ -7,7 +8,7 @@
 #SBATCH --mem=128G
 #SBATCH --cpus-per-task=64  
 #SBATCH --gres=gpu:4
-#SBATCH --time=1-10:00:00
+#SBATCH --time=1-1:00:00
 #SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
 #SBATCH --nodes=1
 
@@ -15,9 +16,13 @@
 python3 --version
 
 df -h
+ulimit -n 65535
+
+python3 estimate_influence.py --base_model allenai/OLMo-2-0425-1B --model_dir ./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42 --train_dataset loris3/tulu-3-sft-olmo-2-mixture-0225-sample --test_dataset loris3/tulu-3-sft-olmo-2-mixture-0225-sample  --train_dataset_split=train --test_dataset_split=test
 
 
+python3 estimate_influence.py --base_model meta-llama/Llama-3.2-1B --model_dir ./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42 --train_dataset loris3/tulu-3-sft-olmo-2-mixture-0225-sample --test_dataset loris3/tulu-3-sft-olmo-2-mixture-0225-sample  --train_dataset_split=train --test_dataset_split=test
 
-python3 estimate_influence.py --base_model EleutherAI/pythia-31m --model_dir ./models/pythia-31m_tulu-v2-sft-mixture_train --train_dataset loris3/tulu-v2-sft-mixture --test_dataset loris3/tulu-v2-sft-mixture  --train_dataset_split=train --test_dataset_split=test
+python3 estimate_influence.py --base_model Qwen/Qwen-2.5-0.5B --model_dir ./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42 --train_dataset loris3/tulu-3-sft-olmo-2-mixture-0225-sample --test_dataset loris3/tulu-3-sft-olmo-2-mixture-0225-sample  --train_dataset_split=train --test_dataset_split=test
 
-# python3 estimate_influence.py --base_model allenai/OLMo-2-0425-1B --model_dir ./models/OLMo-2-0425-1B_tulu-v2-sft-mixture_train --train_dataset loris3/tulu-v2-sft-mixture --test_dataset loris3/tulu-v2-sft-mixture --train_dataset_split=train --test_dataset_split=test
+

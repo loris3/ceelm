@@ -11,7 +11,7 @@
 #SBATCH --container-mount-home 
 #SBATCH --mem=40G
 #SBATCH --cpus-per-task=24  
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --time=0-7:59:00
 #SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
 #SBATCH --nodes=1

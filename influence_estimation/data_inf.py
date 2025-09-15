@@ -47,7 +47,7 @@ class DataInfEstimator(BaseEstimator):
             self.influence_engine.compute_IF_slow()
         
         
-        self.influence_estimate = -self.influence_engine.IF_dict["proposed"]
+        self.influence_estimate = self.influence_engine.IF_dict["proposed"]
         self.save()
         
     def get_gradients(self):
@@ -65,7 +65,7 @@ class DataInfEstimator(BaseEstimator):
             self.test_grad_dict = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
         except (FileNotFoundError, RuntimeError):
             tokenized_test_dataset = tokenize_dataset(self.test_dataset, self.tokenizer)
-            self.lora_engine.compute_gradient(tokenized_test_dataset,  self.tokenizer, self.test_dataset_split, self.gradient_cache_dir)
+            self.lora_engine.compute_gradient(tokenized_test_dataset,  self.tokenizer, self.test_dataset_name, self.test_dataset_split, self.gradient_cache_dir)
             self.get_gradients()
             return
    

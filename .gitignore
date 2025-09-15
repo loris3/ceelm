@@ -25,3 +25,5 @@ tmp/*
 models_test/*
 trainer_output/*
 tmp_dataset_repo/*
+finetuning_eval/*
+olmes/*

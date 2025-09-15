@@ -1,23 +1,45 @@
 # load_experiment_data.py
 
+
 from influence_estimation.data_inf import DataInfEstimator
 from influence_estimation.less_inf import LESSEstimator
 
-from explanations import KRandom, TopKMostInfluential, TopKLeastInfluential, TopKMostOrthogonal, TopKLeastOrthogonal
+from explanations import (
+    KRandom,
+    TopKMostInfluential,
+    TopKLeastInfluential,
+    TopKMostHelpful,
+    TopKMostHarmful,
+)
 from linear_coders import MSECoderProjUSimp, KLTCoder, MSECoder, MSECoderNNLSL2, CosineCoder, MSECoderLemon, MSECoderElasticNet,MSECoderProjUSimpSparse,MSECoderProjUSimpSparseSoftThresh
 
 
 from datasets import load_dataset
 
-train_dataset_name = "loris3/tulu-v2-sft-mixture"
-test_dataset_name = "loris3/tulu-v2-sft-mixture"
+train_dataset_name = "loris3/tulu-3-sft-olmo-2-mixture-0225-sample"
+test_dataset_name = "loris3/tulu-3-sft-olmo-2-mixture-0225-sample"
 
-train_dataset_split = "test"
+train_dataset_split = "train"
 test_dataset_split = "test"
 
 
-explanation_types = [KRandom, TopKMostInfluential, TopKLeastInfluential, TopKMostOrthogonal, TopKLeastOrthogonal]
-linear_coders = [MSECoderProjUSimpSparse,MSECoderProjUSimp, KLTCoder,MSECoder,MSECoderElasticNet, CosineCoder, MSECoderLemon,MSECoderNNLSL2,MSECoderProjUSimpSparseSoftThresh]# OptimizerCosineL1, ]
+MODELS = [
+    "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
+    "./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
+    "./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42"
+]
+
+
+explanation_types = [
+    KRandom,
+    TopKMostInfluential,
+    TopKLeastInfluential,
+    TopKMostHelpful,
+    TopKMostHarmful,
+]
+linear_coders = [MSECoderProjUSimpSparse, MSECoderProjUSimp, KLTCoder, MSECoder, MSECoderNNLSL2, MSECoderProjUSimpSparseSoftThresh,
+                #  MSECoderElasticNet, CosineCoder, MSECoderLemon
+                 ]
 
 
 
@@ -37,16 +59,20 @@ def load_data_and_estimators():
     )
 
     estimators = [
-        LESSEstimator("./models/pythia-31m_tulu-v2-sft-mixture_train",
-                      train_dataset, train_dataset_name, train_dataset_split,
-                      test_dataset, test_dataset_name, test_dataset_split),
-        # LESSEstimator("./models/pythia-31m_tulu-v2-sft-mixture_train",
-        #               train_dataset, train_dataset_name, train_dataset_split,
-        #               test_dataset, test_dataset_name, test_dataset_split,
-        #               normalize=False),
-        DataInfEstimator("./models/pythia-31m_tulu-v2-sft-mixture_train",
-                         train_dataset, train_dataset_name, train_dataset_split,
-                         test_dataset, test_dataset_name, test_dataset_split)
+        
     ]
+    for model in MODELS:
+        estimators.extend([
+            LESSEstimator(model,
+                        train_dataset, train_dataset_name, train_dataset_split,
+                        test_dataset, test_dataset_name, test_dataset_split),
+            DataInfEstimator(model,
+                            train_dataset, train_dataset_name, train_dataset_split,
+                            test_dataset, test_dataset_name, test_dataset_split)
+        ])
+        
+    indices = [ex["indices"] for ex in test_dataset]
+    print(f"Total test examples: {len(indices)}")
+    print(f"Unique indices: {len(set(indices))}")
 
     return train_dataset, test_dataset, estimators

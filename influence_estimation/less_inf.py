@@ -57,7 +57,7 @@ class LESSEstimator(BaseEstimator):
         flat_grads_train = torch.stack(list(grads_train.values()),dim=0)
         flat_grads_test = torch.stack(list(grads_test.values()),dim=0)
 
-        self.influence_estimate = pd.DataFrame(torch.einsum('nd,md->mn', flat_grads_train, flat_grads_test).numpy())
+        self.influence_estimate = pd.DataFrame(-torch.einsum('nd,md->mn', flat_grads_train, flat_grads_test).numpy())
         self.save()
 
    
@@ -148,9 +148,7 @@ def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_
         model.eval()
 
         grads = []
-        model_id = 0
-        block_size = 128
-        projector_batch_size = 16
+
 
         torch.random.manual_seed(0)
 
@@ -244,7 +242,9 @@ def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_
                 elif 'lora_B' in k:
                     grad = v.grad.T
                 with torch.no_grad():
-                    grads.append(param_projectors[k].project(grad.contiguous(), model_id=0).cpu())
+                    proj_grad = param_projectors[k].project(grad.contiguous(), model_id=0).detach().cpu()
+                    grads.append(proj_grad)
+                    del grad
    
             grad_dicts.append({row["indices"][0].item(): torch.cat([g.flatten() for g in grads])})
             

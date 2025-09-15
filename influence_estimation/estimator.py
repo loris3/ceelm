@@ -87,7 +87,10 @@ class BaseEstimator(ABC):
         grad_files = sorted([f for f in os.listdir(base_path) if f.endswith(".pt")])
 
         def load_grad(file_name):
-            return torch.load(os.path.join(base_path, file_name))
+            path = os.path.join(base_path, file_name)
+            with open(path, "rb") as f:
+                return torch.load(f, map_location="cpu")
+           
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             list_of_dicts = list(executor.map(load_grad, grad_files))
@@ -136,6 +139,8 @@ def store_gradient(gradient_cache_dir, dataset_name, dataset_split, gradient_dic
     base_path = os.path.join(gradient_cache_dir, dataset_name, dataset_split)
     os.makedirs(base_path, exist_ok=True)
 
-    grad_path = os.path.join(base_path, f"gradient_{list(gradient_dict.keys())[0]}.pt")
+
     # save as single-item dict {idx: grad}
-    torch.save(gradient_dict, grad_path)
+    grad_path = os.path.join(base_path, f"gradient_{list(gradient_dict.keys())[0]}.pt")
+    with open(grad_path, "wb") as f:
+        torch.save(gradient_dict, f)  

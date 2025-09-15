@@ -1,4 +1,5 @@
 import torch
+import warnings
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer
 import numpy as np
@@ -62,21 +63,34 @@ class ValidationEngine():
         
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token # TODO
-    def get_log_p(self, model, examples):
-        batch = self.data_collator(examples)
-        batch = {k: v.to(self.device) for k, v in batch.items()}
-        with torch.no_grad(): 
-            outputs = model.generate(**batch, max_new_tokens=5, return_dict_in_generate=True, output_scores=True,  num_beams=1)
-            transition_scores = model.compute_transition_scores(
-                outputs.sequences, outputs.scores, normalize_logits=True
-            )
-            log_p = transition_scores.sum(axis=1)
-            # print("log_p",log_p)
-            return log_p
 
-            
-        return self.model_
-    def score(self, train_dataset, test_dataset):
+    def get_log_p(self, model, examples):
+
+        log_probs = []
+
+        for ex in examples:
+            if isinstance(ex, str):
+                ex = {"messages": ex}
+
+            batch = self.data_collator([ex])
+            batch = {k: v.to(self.device) for k, v in batch.items()}
+
+            batch["labels"] = batch["input_ids"]
+            with torch.no_grad():
+                outputs = model(**batch)
+                seq_lengths = batch["attention_mask"].sum(dim=1)
+                log_p = -outputs.loss * seq_lengths 
+                log_probs.append(log_p.item())
+
+           
+            del batch, outputs
+            torch.cuda.empty_cache()
+
+        return torch.tensor(log_probs, device=self.device)
+
+                    
+
+    def score(self, train_dataset, test_dataset,seed):
 
         base_model_after_ft = AutoModelForCausalLM.from_pretrained(
                 self.base_model_path,
@@ -84,7 +98,7 @@ class ValidationEngine():
             )
         model_after_ft = PeftModel.from_pretrained(base_model_after_ft, self.adapter_path).to(self.device)
         model_after_ft.config.pad_token_id = self.tokenizer.eos_token_id
-        model_after_ft = self.finetune(model_after_ft, train_dataset)
+        model_after_ft = self.finetune(model_after_ft, train_dataset, seed=seed)
         
         base_model_before_ft = AutoModelForCausalLM.from_pretrained(
                 self.base_model_path,
@@ -98,7 +112,7 @@ class ValidationEngine():
         log_p_after_ft = self.get_log_p(model_after_ft, test_dataset)
         return log_p_after_ft - log_p_before_ft
 
-    def finetune(self, model, train_dataset):
+    def finetune(self, model, train_dataset,seed):
         
         # Freeze the base model
         for param in model.base_model.parameters():
@@ -113,21 +127,23 @@ class ValidationEngine():
             per_device_train_batch_size=1,
             gradient_accumulation_steps=1,
             remove_unused_columns=False,
-            num_train_epochs=5,
-            learning_rate=2e-5,
+            num_train_epochs=25,
+            learning_rate=1e-4,
             logging_steps=500,
-            seed=42,
+            seed=seed,
             report_to=[],
             disable_tqdm=True
         )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=FutureWarning)  # suppress tokenizer deprecated
+            warnings.simplefilter("ignore")  # suppress other warnings like label_names
+            trainer = Trainer(
+                model=model,
+                args=training_args,
+                train_dataset=train_dataset,
+                tokenizer=self.tokenizer,
+                data_collator=self.data_collator,
+            )
 
-        trainer = Trainer(
-            model=model,
-            args=training_args,
-            train_dataset=train_dataset,
-            tokenizer=self.tokenizer,
-            data_collator=self.data_collator,
-        )
-
-        trainer.train(resume_from_checkpoint=False)
+            trainer.train(resume_from_checkpoint=False)
         return model

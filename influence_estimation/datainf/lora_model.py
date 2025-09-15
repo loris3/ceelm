@@ -185,5 +185,6 @@ def _compute_gradient_batch(dataloader, rank, model, param_projectors):
                 grad = v.grad.T
             with torch.no_grad():
                 grad_dict[k] = param_projectors[k].project(grad.contiguous(), model_id=0).cpu()
+                del grad
         grad_dicts.append({row["indices"][0].item(): grad_dict})
     return grad_dicts

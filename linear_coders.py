@@ -38,6 +38,7 @@ class LinearCoder(ABC, nn.Module):
             
 
             if self.use_wandb:
+                print("wandb init!!!")
                 wandb.init(project=project, name="_".join([self.description, estimator_config]), config={
                     "coder": self.description,
                     "estimator": estimator_config,
@@ -169,7 +170,7 @@ class LinearCoder(ABC, nn.Module):
 
 class KLTCoder(LinearCoder):
     def __init__(self, A, test_grad, device=None,reg_lambda=0.05, metadata_only=False,
-                 use_wandb=False, project="linear_coder",  estimator_config=""):
+                 project="linear_coder",  estimator_config=""):
         self.reg_lambda = reg_lambda
    
         
@@ -200,10 +201,10 @@ class KLTCoder(LinearCoder):
     
 class CosineCoder(LinearCoder):
     def __init__(self, A, test_grad, device=None, metadata_only=False,
-                 use_wandb=False, project="linear_coder", estimator_config=""):
+                  project="linear_coder", estimator_config=""):
         
         super().__init__(A, test_grad, device, metadata_only=metadata_only,
-                         use_wandb=use_wandb, project=project, estimator_config= estimator_config)
+                         use_wandb=True, project=project, estimator_config= estimator_config)
 
     def loss(self, test_grad, combination, factors): 
         return -F.cosine_similarity(test_grad.unsqueeze(0), combination.unsqueeze(0)) 
@@ -421,13 +422,13 @@ class MSECoderProjUSimpSparse(BaseMSECoder):
     def fit(self, **kwargs):
         with torch.no_grad():
             t_unconstrained = torch.linalg.pinv(self.A.T) @ self.test_grad
-            t_opt = GSHP_tensor(t_unconstrained, t_unconstrained, 1, max(1,int((1.0-self.reg_lambda)*self.t.shape)))
+            t_opt = GSHP_tensor(t_unconstrained, t_unconstrained, 1, max(1,int((1.0-self.reg_lambda)*self.t.shape[0])))
             self.t.data.copy_(t_opt)
 
 
 class MSECoderElasticNet(BaseMSECoder):
     def __init__(self, A, test_grad, device=None, reg_lambda_1=0.3, reg_lambda_2=0.7, metadata_only=False,
-                   use_wandb=False, project="linear_coder", estimator_config=""):
+                   use_wandb=True, project="linear_coder", estimator_config=""):
         self.reg_lambda_1 = reg_lambda_1
         self.reg_lambda_2 = reg_lambda_2
     
@@ -447,7 +448,7 @@ class MSECoderLemon(BaseMSECoder):
                  reg_lambda_1=0.3, 
                  reg_lambda_2=0.7, 
                  reg_lambda_3_non_negative=0.5, 
-                 metadata_only=False, use_wandb=False, project="linear_coder", estimator_config=""):
+                 metadata_only=False, use_wandb=True, project="linear_coder", estimator_config=""):
         self.reg_lambda_1 = reg_lambda_1
         self.reg_lambda_2 = reg_lambda_2
         self.reg_lambda_3_non_negative = reg_lambda_3_non_negative       

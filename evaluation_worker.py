@@ -14,31 +14,37 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
     
 
     
-    test_grad = estimator.get_gradient(test_dataset, os.path.basename(test_dataset_name), test_dataset_split, explanation.dataset_idx).to(device)
+    test_grad = None
+    A = None
 
-    A = torch.stack(
-        [estimator.get_gradient(train_dataset, os.path.basename(train_dataset_name), train_dataset_split, i) for i in explanation.documents]
-    ).to(device)
    
     results_local = []
     
 
     for linear_coder in linear_coders:
+        # check if already done
         o = linear_coder(A, test_grad, device=device, metadata_only=True)
         results_path = os.path.join(
             partial_results_dir,
             o.description,
+            explanation.description,
             str(ii) + ".parquet",
             )
         os.makedirs(os.path.dirname(results_path), exist_ok=True)
+        
         if os.path.isfile(results_path):
-            print(f"Skipping {ii}: parquet file exists", flush=True)
+            print(f"Skipping {ii}: parquet file exists: {results_path}", flush=True)
             continue
         else:
-            o = linear_coder(A, test_grad, device=device, metadata_only=False,
-                             use_wandb=True, estimator_config=estimator.get_config_string())
+            # run
+            if test_grad is None: # load once
+                test_grad = estimator.get_gradient(test_dataset, os.path.basename(test_dataset_name), test_dataset_split, explanation.document_idx).to(device)
+            if A is None: # load once
+                A = torch.stack(
+                    [estimator.get_gradient(train_dataset, os.path.basename(train_dataset_name), train_dataset_split, i) for i in explanation.documents]
+                ).to(device)
+            o = linear_coder(A, test_grad, device=device, metadata_only=False, estimator_config=estimator.get_config_string())
             
-
             try:
                 o.fit()
             except Exception as e:
@@ -68,7 +74,7 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
                 explanation.description,
                 os.path.basename(estimator.model_path),
                 estimator.get_config_string(),
-                explanation.dataset_idx,
+                explanation.document_idx,
                 train_dataset_name,
                 train_dataset_split,
                 test_dataset_name,
@@ -89,7 +95,7 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
                 "explanation_type", 
                 "model", 
                 "estimator",
-                "dataset_idx", 
+                "document_idx", 
                 "train_dataset", 
                 "train_split", 
                 "test_dataset", 
