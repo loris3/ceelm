@@ -5,6 +5,17 @@ from tqdm import tqdm
 from peft import PeftModel
 from finetune import tokenize_dataset
 import logging
+import sys
+
+logging.basicConfig(
+    level=logging.DEBUG,  
+    format="%(asctime)s [%(levelname)s] [%(processName)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+    ]
+)
+
+logger = logging.getLogger(__name__)
 import torch
 from influence_estimation.estimator import BaseEstimator
 from transformers import DataCollatorForSeq2Seq
@@ -35,15 +46,11 @@ class LESSEstimator(BaseEstimator):
         return f"{self.__class__.__name__}: normalize={str(self.normalize)}"
   
     def run(self):
-        grads_train = None
         grads_test = None
-        try:
-            grads_train = self.load_gradients(self.train_dataset, self.train_dataset_name, self.train_dataset_split)
-        except (FileNotFoundError, RuntimeError):
+        if not self.all_gradients_exist(self.train_dataset, self.train_dataset_name, self.train_dataset_split, self.gradient_cache_dir):
             self.get_gradients(self.train_dataset, gradient_type="adam" if self.adam_optimizer_state is not None else "sgd", dataset_name=self.train_dataset_name, dataset_split_name=self.train_dataset_split, gradient_cache_dir=self.gradient_cache_dir)
-            self.run()
-            return
-
+        else:
+            print("train grads cached")
             # grads_train = self.load_gradients(self.train_dataset, self.train_dataset_name, self.train_dataset_split)
         try:
             grads_test = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
@@ -54,10 +61,36 @@ class LESSEstimator(BaseEstimator):
             return
         
         
-        flat_grads_train = torch.stack(list(grads_train.values()),dim=0)
-        flat_grads_test = torch.stack(list(grads_test.values()),dim=0)
+        # flat_grads_train = torch.stack(list(grads_train.values()),dim=0)
+        # flat_grads_test = torch.stack(list(grads_test.values()),dim=0)
 
-        self.influence_estimate = pd.DataFrame(-torch.einsum('nd,md->mn', flat_grads_train, flat_grads_test).numpy())
+        # self.influence_estimate = pd.DataFrame(-torch.einsum('nd,md->mn', flat_grads_train, flat_grads_test).numpy())
+        
+     
+        n_train = len(self.train_dataset)
+        n_test = len(grads_test)
+
+        flat_grads_test = torch.cat([g.view(1, -1) for g in grads_test.values()], dim=0)  
+
+    
+        influence_matrix = torch.empty(n_test, n_train)
+
+        for i in tqdm(range(n_train), desc="Dot products"):
+            train_grad = self.get_gradient(self.train_dataset, self.train_dataset_name, self.train_dataset_split, i)
+            flat_train_grad = train_grad.view(1, -1)  # (1, D)
+            
+
+            dots = -flat_train_grad @ flat_grads_test.T  
+            
+
+            influence_matrix[:, i] = dots.squeeze(0)
+
+        self.influence_estimate = pd.DataFrame(
+            influence_matrix.numpy(),
+            index=list(grads_test.keys()),
+            columns=list(range(n_train))  
+        )
+
         self.save()
 
    
@@ -95,10 +128,24 @@ class LESSEstimator(BaseEstimator):
                         batch_dict = {k: [ex[k] for ex in chunk] for k in chunk.column_names}
                         futures.append(executor.submit(fn, batch_dict, rank))
                     for f in futures:
-                        f.result()
+                        try:
+                            f.result()
+                        except Exception as e:
+                            logger.error(f"Future {i} raised exception: {e}", exc_info=True)
+                            raise
 
   
+    def all_gradients_exist(self, dataset, dataset_name, dataset_split_name, gradient_cache_dir):
+        base_path = os.path.join(gradient_cache_dir, dataset_name, dataset_split_name)
+        if not os.path.exists(base_path):
+            return False
 
+        for idx in range(len(dataset)):
+            grad_path = os.path.join(base_path, f"gradient_{idx}.pt")
+            if not os.path.isfile(grad_path):
+                return False
+
+        return True
 
 
 
@@ -110,7 +157,7 @@ class LESSEstimator(BaseEstimator):
  
 
 
-from .estimator import store_gradient
+
 
 def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_optimizer_state, gradient_cache_dir, dataset_name, dataset_split_name):
     try:
@@ -121,14 +168,14 @@ def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_opti
 
         batch = Dataset.from_dict(batch)
         print("bs", rank)
-        
-        for grad_dict in _get_gradients_batch(get_dataloader(tokenizer, batch), rank, model,  gradient_type, adam_optimizer_state, proj_dim):
-            store_gradient(gradient_cache_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict) 
+        _get_gradients_batch(get_dataloader(tokenizer, batch), rank, model,  gradient_type, adam_optimizer_state, proj_dim,
+                                 gradient_cache_dir, dataset_name, dataset_split_name)
+
 
     except Exception as e:
         import traceback
-        print(f"Rank {rank} failed:", e)
-        traceback.print_exc()
+        tb_str = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+        logger.error(f"Worker {rank} failed with exception:\n{tb_str}")
         raise
 def get_dataloader(tokenizer, dataset, batch_size=1):
     data_collator = DataCollatorForSeq2Seq(
@@ -136,12 +183,14 @@ def get_dataloader(tokenizer, dataset, batch_size=1):
     
     
 
-    dataloader = DataLoader(tokenize_dataset(dataset, tokenizer, num_proc=1, re_index=False),
+    dataloader = DataLoader(tokenize_dataset(dataset, tokenizer, num_proc=20, re_index=False),
                             batch_size=batch_size,  # When getting gradients, we only do this single batch process
                             collate_fn=data_collator)
     print("There are {} examples in the dataset".format(len(dataset)))
     return dataloader
-def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_state, proj_dim):
+def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_state, proj_dim,
+                         gradient_cache_dir=None, dataset_name=None, dataset_split_name=None):
+        from .estimator import store_gradient, gradient_exists
         print("_get_gradients_batch", rank)
         device = f"cuda:{rank % torch.cuda.device_count()}"
         model.to(device)
@@ -223,34 +272,36 @@ def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_
         print("self.total_grad_dim", total_grad_dim)
         print("self.param_projectors", param_proj_dim, flush=True)
   
-        grad_dicts = []
+
         for row in tqdm(dataloader, position=rank, desc=f"Worker {rank}"):
-            model.zero_grad()
-            row['labels'] = row['input_ids']
-            row.to(device)
-            outputs = model(**row)
-            loss = outputs.loss
-            loss.backward()
-            grads = []
-            for k, v in model.named_parameters():
-                grad = None
-                if k not in param_projectors:
-                    continue
-                if 'lora_A' in k:
-                    grad = v.grad
-                
-                elif 'lora_B' in k:
-                    grad = v.grad.T
-                with torch.no_grad():
-                    proj_grad = param_projectors[k].project(grad.contiguous(), model_id=0).detach().cpu()
-                    grads.append(proj_grad)
-                    del grad
-   
-            grad_dicts.append({row["indices"][0].item(): torch.cat([g.flatten() for g in grads])})
+            if not  gradient_exists(gradient_cache_dir, dataset_name, dataset_split_name, row["indices"][0].item()):
+                model.zero_grad()
+                row['labels'] = row['input_ids']
+                row.to(device)
+                outputs = model(**row)
+                loss = outputs.loss
+                loss.backward()
+                grads = []
+                for k, v in model.named_parameters():
+                    grad = None
+                    if k not in param_projectors:
+                        continue
+                    if 'lora_A' in k:
+                        grad = v.grad
+                    
+                    elif 'lora_B' in k:
+                        grad = v.grad.T
+                    with torch.no_grad():
+                        proj_grad = param_projectors[k].project(grad.contiguous(), model_id=0).detach().cpu()
+                        grads.append(proj_grad)
+                        del grad
+                grad_dict = {row["indices"][0].item(): torch.cat([g.flatten() for g in grads])}
+                store_gradient(gradient_cache_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict)
+                torch.cuda.empty_cache() 
+    
             
        
-        return grad_dicts
-
+      
 
 def prepare_optimizer_state(model, device, adam_optimizer_state):
     names = [n for n, p in model.named_parameters() if p.requires_grad]

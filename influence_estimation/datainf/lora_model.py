@@ -136,6 +136,18 @@ class LORAEngineGeneration(object):
             for f in futures:
                 f.result()
 
+       
+    def all_gradients_exist(self, dataset, dataset_name, dataset_split_name, gradient_cache_dir):
+        base_path = os.path.join(gradient_cache_dir, dataset_name, dataset_split_name)
+        if not os.path.exists(base_path):
+            return False
+
+        for idx in range(len(dataset)):
+            grad_path = os.path.join(base_path, f"gradient_{idx}.pt")
+            if not os.path.isfile(grad_path):
+                return False
+
+        return True
         
 
     
@@ -152,39 +164,42 @@ def batch_map(batch, rank, tokenizer, model, param_projectors, dataset_name, dat
         
         collate_fn = lambda x: tokenizer.pad(x, padding="longest", return_tensors="pt")
         dataloader = DataLoader(batch_list, shuffle=False, collate_fn=collate_fn, batch_size=1)
-        for grad_dict in _compute_gradient_batch(dataloader, rank, model, param_projectors):
-            store_gradient(gradient_cache_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict) 
+        _compute_gradient_batch(dataloader, rank, model, param_projectors, gradient_cache_dir, dataset_name, dataset_split_name)
+            
         
         
    
     
     
-def _compute_gradient_batch(dataloader, rank, model, param_projectors):
+def _compute_gradient_batch(dataloader, rank, model, param_projectors,
+                             gradient_cache_dir, dataset_name, dataset_split_name):
+    from ..estimator import store_gradient, gradient_exists
     print("_compute_gradient_batch", flush=True)
     device = f"cuda:{rank % torch.cuda.device_count()}"
     model.to(device)
     model.eval()
-    grad_dicts = []
 
+    
     for row in tqdm(dataloader, position=rank, desc=f"Worker {rank}"):
-        model.zero_grad()
-        row['labels'] = row['input_ids']
-        row.to(device)
-        outputs = model(**row)
-        loss = outputs.loss
-        loss.backward()
-        grad_dict = {}
-        for k, v in model.named_parameters():
-            grad = None
-            if k not in param_projectors:
-                continue
-            if 'lora_A' in k:
-                grad = v.grad
-               
-            elif 'lora_B' in k:
-                grad = v.grad.T
-            with torch.no_grad():
-                grad_dict[k] = param_projectors[k].project(grad.contiguous(), model_id=0).cpu()
-                del grad
-        grad_dicts.append({row["indices"][0].item(): grad_dict})
-    return grad_dicts
+        if not  gradient_exists(gradient_cache_dir, dataset_name, dataset_split_name, row["indices"][0].item()):
+            model.zero_grad()
+            row['labels'] = row['input_ids']
+            row.to(device)
+            outputs = model(**row)
+            loss = outputs.loss
+            loss.backward()
+            grad_dict = {}
+            for k, v in model.named_parameters():
+                grad = None
+                if k not in param_projectors:
+                    continue
+                if 'lora_A' in k:
+                    grad = v.grad
+                
+                elif 'lora_B' in k:
+                    grad = v.grad.T
+                with torch.no_grad():
+                    grad_dict[k] = param_projectors[k].project(grad.contiguous(), model_id=0).cpu()
+                    del grad
+            grad_dict = {row["indices"][0].item(): grad_dict}
+            store_gradient(gradient_cache_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict) 

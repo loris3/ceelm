@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="[CFE] Finetuning Sweep OLMo Llama Qwen"
 
-#SBATCH --container-image=loris3/cfe:latest 
+#SBATCH --container-image=ghcr.io#ghcr.io#loris3/cfe:latest 
 #SBATCH --nodelist=dgx-h100-em2
 #SBATCH --container-mount-home 
 #SBATCH --mem=128G

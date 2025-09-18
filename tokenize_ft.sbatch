@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="[CFE] Pre-tokenization before finetuning"
 
-#SBATCH --container-image=loris3/cfe:latest 
+#SBATCH --container-image=ghcr.io#ghcr.io#loris3/cfe:latest 
 #SBATCH --container-mount-home 
 #SBATCH --mem=300G
 #SBATCH --cpus-per-task=64  

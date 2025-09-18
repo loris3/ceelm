@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="[CFE] Jupyter Lab Server"
 
-#SBATCH --container-image=loris3/cfe:latest 
+#SBATCH --container-image="ghcr.io#loris3/cfe:latest"
 # #SBATCH --container-image=/srv/home/users/loriss21cs/cfe/cfe.sqsh
 
 
@@ -9,9 +9,9 @@
 # # dgx-h100-em2
 # # SBATCH --container-save=/srv/home/users/loriss21cs/cfe/cfe.sqsh
 #SBATCH --container-mount-home 
-#SBATCH --mem=40G
-#SBATCH --cpus-per-task=24  
-#SBATCH --gres=gpu:1
+#SBATCH --mem=36G
+#SBATCH --cpus-per-task=8  
+#SBATCH --gres=gpu:0
 #SBATCH --time=0-7:59:00
 #SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
 #SBATCH --nodes=1

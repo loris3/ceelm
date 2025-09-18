@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="[CFE] Finetuning Olmo2-1B math"
 
-#SBATCH --container-image=loris3/cfe:latest 
+#SBATCH --container-image=ghcr.io#ghcr.io#loris3/cfe:latest 
 # #SBATCH --container-image=/srv/home/users/loriss21cs/cfe/cfe.sqsh
 
 

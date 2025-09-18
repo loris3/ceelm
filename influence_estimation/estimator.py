@@ -6,14 +6,15 @@ import logging
 import torch
 import pandas as pd
 import json 
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 if not logger.hasHandlers():
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 class BaseEstimator(ABC):
-    def __init__(self, model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device="cuda", param_list=[]):
+    def __init__(self, model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device="cuda", param_list=[], persistent_cache=False):
         self.model_path = model_path
      
         self.train_dataset_split = train_dataset_split
@@ -28,7 +29,7 @@ class BaseEstimator(ABC):
         
         self.gradient_cache = {}
         
-        self.gradient_cache_dir = os.path.join("./cache/gradients/full", self.__class__.__name__, self.param_string, os.path.basename(self.model_path))
+        self.gradient_cache_dir = os.path.join("cache/gradients/full" if persistent_cache else "/tmp/cache/gradients/full", self.__class__.__name__, self.param_string, os.path.basename(self.model_path))
 
         os.makedirs(self.gradient_cache_dir, exist_ok=True)
         
@@ -79,21 +80,29 @@ class BaseEstimator(ABC):
 
       
             
-    def load_gradients(self, dataset, dataset_name, dataset_split, max_workers=8):
+    def load_gradients(self, dataset, dataset_name, dataset_split, max_workers=32):
         base_path = os.path.join(self.gradient_cache_dir, dataset_name, dataset_split)
         if not os.path.exists(base_path):
             raise FileNotFoundError(f"No gradients found at {base_path}")
 
         grad_files = sorted([f for f in os.listdir(base_path) if f.endswith(".pt")])
-
+        if len(grad_files) != len(dataset):
+            raise FileNotFoundError()
         def load_grad(file_name):
             path = os.path.join(base_path, file_name)
             with open(path, "rb") as f:
                 return torch.load(f, map_location="cpu")
            
 
+        # with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        #     list_of_dicts = list(executor.map(load_grad, grad_files))
+        list_of_dicts = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            list_of_dicts = list(executor.map(load_grad, grad_files))
+     
+            futures = [executor.submit(load_grad, file) for file in grad_files]
+
+            for future in tqdm(as_completed(futures), total=len(futures)):
+                list_of_dicts.append(future.result())
 
         # merge
         gradients_dict = {}
@@ -139,8 +148,23 @@ def store_gradient(gradient_cache_dir, dataset_name, dataset_split, gradient_dic
     base_path = os.path.join(gradient_cache_dir, dataset_name, dataset_split)
     os.makedirs(base_path, exist_ok=True)
 
+    # need to handle bf16 conversion sperately for less and datainf formats
+    gradient_dict_bf16 = {}
+    for outer_k, v in gradient_dict.items():
+        if isinstance(v, dict):
+            # nested dict
+            gradient_dict_bf16[outer_k] = {k: t.to(torch.bfloat16) for k, t in v.items()}
+        elif isinstance(v, torch.Tensor):
+            # flat dict
+            gradient_dict_bf16[outer_k] = v.to(torch.bfloat16)
+        else:
+            raise ValueError(f"Unexpected type {type(v)} in gradient_dict")
 
-    # save as single-item dict {idx: grad}
     grad_path = os.path.join(base_path, f"gradient_{list(gradient_dict.keys())[0]}.pt")
     with open(grad_path, "wb") as f:
-        torch.save(gradient_dict, f)  
+        torch.save(gradient_dict_bf16, f)
+
+def gradient_exists(gradient_cache_dir, dataset_name, dataset_split, idx):
+    base_path = os.path.join(gradient_cache_dir, dataset_name, dataset_split)
+    grad_path = os.path.join(base_path, f"gradient_{idx}.pt")
+    return os.path.exists(grad_path)
