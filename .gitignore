@@ -30,3 +30,5 @@ olmes/*
 old/*
 fi
 *.out
+tables/*
+tables/olmes-external.tex

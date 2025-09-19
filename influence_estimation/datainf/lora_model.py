@@ -102,7 +102,7 @@ class LORAEngineGeneration(object):
         print("self.param_projectors", self.param_proj_dim, flush=True)
 
         
-    def compute_gradient(self, tokenized_dataset, tokenizer, dataset_name, dataset_split_name, gradient_cache_dir):
+    def compute_gradient(self, tokenized_dataset, tokenizer, dataset_name, dataset_split_name, gradient_cache_dir, gradient_out_dir):
        
        
        
@@ -123,7 +123,8 @@ class LORAEngineGeneration(object):
             param_projectors=self.param_projectors,
             dataset_name=dataset_name,
             dataset_split_name=dataset_split_name,
-            gradient_cache_dir=gradient_cache_dir
+            gradient_cache_dir=gradient_cache_dir,
+            gradient_out_dir=gradient_out_dir
         )
         
 
@@ -156,7 +157,7 @@ from functools import partial
 from ..estimator import store_gradient
 
 
-def batch_map(batch, rank, tokenizer, model, param_projectors, dataset_name, dataset_split_name, gradient_cache_dir):
+def batch_map(batch, rank, tokenizer, model, param_projectors, dataset_name, dataset_split_name, gradient_cache_dir, gradient_out_dir):
     
         if rank is None:
             rank = 0
@@ -164,7 +165,7 @@ def batch_map(batch, rank, tokenizer, model, param_projectors, dataset_name, dat
         
         collate_fn = lambda x: tokenizer.pad(x, padding="longest", return_tensors="pt")
         dataloader = DataLoader(batch_list, shuffle=False, collate_fn=collate_fn, batch_size=1)
-        _compute_gradient_batch(dataloader, rank, model, param_projectors, gradient_cache_dir, dataset_name, dataset_split_name)
+        _compute_gradient_batch(dataloader, rank, model, param_projectors, gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split_name)
             
         
         
@@ -172,7 +173,7 @@ def batch_map(batch, rank, tokenizer, model, param_projectors, dataset_name, dat
     
     
 def _compute_gradient_batch(dataloader, rank, model, param_projectors,
-                             gradient_cache_dir, dataset_name, dataset_split_name):
+                             gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split_name):
     from ..estimator import store_gradient, gradient_exists
     print("_compute_gradient_batch", flush=True)
     device = f"cuda:{rank % torch.cuda.device_count()}"
@@ -202,4 +203,4 @@ def _compute_gradient_batch(dataloader, rank, model, param_projectors,
                     grad_dict[k] = param_projectors[k].project(grad.contiguous(), model_id=0).cpu()
                     del grad
             grad_dict = {row["indices"][0].item(): grad_dict}
-            store_gradient(gradient_cache_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict) 
+            store_gradient(gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict) 

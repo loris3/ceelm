@@ -17,9 +17,9 @@ if not logger.hasHandlers():
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 class DataInfEstimator(BaseEstimator):
-    def __init__(self, model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device="cuda", proj_dim=2**13,fast_implementation=True):
+    def __init__(self, model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device="cuda", proj_dim=2**13,fast_implementation=True,eval_mode=False):
         super().__init__(model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device,
-                         param_list=[proj_dim,fast_implementation],
+                         param_list=[proj_dim,fast_implementation],eval_mode=eval_mode
                          )
         self.proj_dim = proj_dim
         self.fast_implementation = fast_implementation
@@ -55,14 +55,10 @@ class DataInfEstimator(BaseEstimator):
         
     def get_gradients(self):
 
-        
-        # try:
-        #     self.tr_grad_dict = self.load_gradients(self.train_dataset, self.train_dataset_name, self.train_dataset_split)
-        # except (FileNotFoundError, RuntimeError):
         self.tokenized_train_dataset = tokenize_dataset(self.train_dataset, self.tokenizer)
         
         if not self.lora_engine.all_gradients_exist(self.train_dataset, self.train_dataset_name, self.train_dataset_split, self.gradient_cache_dir):
-            self.lora_engine.compute_gradient(self.tokenized_train_dataset, self.tokenizer, self.train_dataset_name, self.train_dataset_split, self.gradient_cache_dir)        
+            self.lora_engine.compute_gradient(self.tokenized_train_dataset, self.tokenizer, self.train_dataset_name, self.train_dataset_split, self.gradient_cache_dir, self.gradient_out_dir)        
         else:
             print("train grads cached")
 
@@ -70,7 +66,7 @@ class DataInfEstimator(BaseEstimator):
             self.test_grad_dict = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
         except (FileNotFoundError, RuntimeError):
             tokenized_test_dataset = tokenize_dataset(self.test_dataset, self.tokenizer)
-            self.lora_engine.compute_gradient(tokenized_test_dataset,  self.tokenizer, self.test_dataset_name, self.test_dataset_split, self.gradient_cache_dir)
+            self.lora_engine.compute_gradient(tokenized_test_dataset,  self.tokenizer, self.test_dataset_name, self.test_dataset_split, self.gradient_cache_dir, self.gradient_out_dir)
             self.get_gradients()
             return
 

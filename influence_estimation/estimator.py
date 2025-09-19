@@ -8,13 +8,33 @@ import pandas as pd
 import json 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import os
+import shutil
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+
+import subprocess
 logger = logging.getLogger(__name__)
 if not logger.hasHandlers():
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
-
+    
+def copy_file(src_file, src_root, dst_root):
+    rel_path = os.path.relpath(src_file, src_root)
+    dst_file = os.path.join(dst_root, rel_path)
+    if os.path.exists(dst_file):
+        return
+    os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+    try:
+        subprocess.run(["cp", "-p", src_file, dst_file], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error copying {src_file} to {dst_file}: {e}")
+   
 class BaseEstimator(ABC):
-    def __init__(self, model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device="cuda", param_list=[], persistent_cache=False):
+    def __init__(self, model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device="cuda", param_list=[], eval_mode=False):
         self.model_path = model_path
      
         self.train_dataset_split = train_dataset_split
@@ -29,9 +49,22 @@ class BaseEstimator(ABC):
         
         self.gradient_cache = {}
         
-        self.gradient_cache_dir = os.path.join("cache/gradients/full" if persistent_cache else "/tmp/cache/gradients/full", self.__class__.__name__, self.param_string, os.path.basename(self.model_path))
-
+        self.gradient_cache_dir = os.path.join("/tmp/cache/gradients/full", self.__class__.__name__, self.param_string, os.path.basename(self.model_path))
+        self.gradient_out_dir = os.path.join("cache/gradients/full", self.__class__.__name__, self.param_string, os.path.basename(self.model_path))
+        
+        if eval_mode:
+            self.gradient_cache_dir = self.gradient_out_dir
+        
         os.makedirs(self.gradient_cache_dir, exist_ok=True)
+        os.makedirs(self.gradient_out_dir, exist_ok=True)
+        
+        
+        
+        
+        
+        
+        
+
         
         self.influence_estimate_path = os.path.join(
                 "./results/influence",
@@ -81,6 +114,7 @@ class BaseEstimator(ABC):
       
             
     def load_gradients(self, dataset, dataset_name, dataset_split, max_workers=32):
+
         base_path = os.path.join(self.gradient_cache_dir, dataset_name, dataset_split)
         if not os.path.exists(base_path):
             raise FileNotFoundError(f"No gradients found at {base_path}")
@@ -117,16 +151,69 @@ class BaseEstimator(ABC):
         self.influence_estimate.columns = self.train_dataset["indices"]
         self.influence_estimate.to_parquet(self.influence_estimate_path)
         logger.info(f"Saved influence estimate to disk")
+
+
     def run_cached(self):
         self.influence_estimate = None
         try:
-            self.influence_estimate =  pd.read_parquet(self.influence_estimate_path)
-      
+            self.influence_estimate = pd.read_parquet(self.influence_estimate_path)
         except Exception as e:
             if not isinstance(e, FileNotFoundError):
-                logger.error(f"Recomputing due to unexpected error while loading influence estimate: {e}", exc_info=True)
+                logger.error(
+                    f"Recomputing due to unexpected error while loading influence estimate: {e}", 
+                    exc_info=True
+                )
+
+            # Copy cached gradients 
+            try:
+                print("Copying cached gradients", flush=True)
+                folders = [
+                    (os.path.join(self.gradient_out_dir, self.train_dataset_name, self.train_dataset_split),
+                    os.path.join(self.gradient_cache_dir, self.train_dataset_name, self.train_dataset_split)),
+                    (os.path.join(self.gradient_out_dir, self.test_dataset_name, self.test_dataset_split),
+                    os.path.join(self.gradient_cache_dir, self.test_dataset_name, self.test_dataset_split))
+                ]
+
+                max_workers = 32
+
+                for remote_folder, local_folder in folders:
+                    print(f"{remote_folder} --> {local_folder}", flush=True)
+                    os.makedirs(remote_folder, exist_ok=True)
+                    os.makedirs(local_folder, exist_ok=True)
+
+                    all_files = []
+                    for root, _, files in os.walk(remote_folder):
+                        for f in files:
+                            all_files.append(os.path.join(root, f))
+
+                    # Split files evenly across workers
+                    def chunks(lst, n):
+                        k, m = divmod(len(lst), n)
+                        return [lst[i*k + min(i, m):(i+1)*k + min(i+1, m)] for i in range(n)]
+
+                    file_batches = chunks(all_files, max_workers)
+                    print("len(file_batches)", len(file_batches))
+                    def worker_copy(batch):
+                        for f in batch:
+                            copy_file(f, remote_folder, local_folder)
+
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        futures = [executor.submit(worker_copy, batch) for batch in file_batches]
+
+           
+                        with tqdm(total=len(futures), desc="Copying files") as pbar:
+                            for future in as_completed(futures):
+                                future.result()  
+                                pbar.update(1)
+
+            except Exception as ee:
+                print(ee, flush=True)
+                raise
+
+            # Initialize model and run
             self.init_model_and_tokenizer()
             self.run()
+
     def get_explanation(self, test_instance_idx):
         return self.influence_estimate.iloc[test_instance_idx]
     
@@ -143,10 +230,17 @@ class BaseEstimator(ABC):
         
         if not os.path.exists(grad_path):
             raise FileNotFoundError(f"Gradient file not found: {grad_path}")
-        return torch.load(grad_path)
-def store_gradient(gradient_cache_dir, dataset_name, dataset_split, gradient_dict):
+        try:
+            grad = torch.load(grad_path)
+        except:
+            print(f"Failed loading {grad_path}, delete that file and retry!", flush=True)
+        return grad
+def store_gradient(gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split, gradient_dict):
     base_path = os.path.join(gradient_cache_dir, dataset_name, dataset_split)
     os.makedirs(base_path, exist_ok=True)
+    
+    remote_base_path = os.path.join(gradient_out_dir, dataset_name, dataset_split)
+    os.makedirs(remote_base_path, exist_ok=True)
 
     # need to handle bf16 conversion sperately for less and datainf formats
     gradient_dict_bf16 = {}
@@ -162,6 +256,9 @@ def store_gradient(gradient_cache_dir, dataset_name, dataset_split, gradient_dic
 
     grad_path = os.path.join(base_path, f"gradient_{list(gradient_dict.keys())[0]}.pt")
     with open(grad_path, "wb") as f:
+        torch.save(gradient_dict_bf16, f)
+    grad_path_remote = os.path.join(remote_base_path, f"gradient_{list(gradient_dict.keys())[0]}.pt")
+    with open(grad_path_remote, "wb") as f:
         torch.save(gradient_dict_bf16, f)
 
 def gradient_exists(gradient_cache_dir, dataset_name, dataset_split, idx):

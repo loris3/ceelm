@@ -6,6 +6,8 @@ from peft import PeftModel
 from finetune import tokenize_dataset
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 logging.basicConfig(
     level=logging.DEBUG,  
@@ -26,11 +28,11 @@ from functools import partial
 
 from concurrent.futures import ProcessPoolExecutor
 class LESSEstimator(BaseEstimator):
-    def __init__(self, model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device="cuda", normalize=True, proj_dim=2**13):
+    def __init__(self, model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device="cuda", normalize=True, proj_dim=2**13, eval_mode=False):
         super().__init__(model_path, train_dataset, train_dataset_name, train_dataset_split, test_dataset, test_dataset_name, test_dataset_split, device,
                          param_list=[
                              proj_dim,
-                             normalize]
+                             normalize], eval_mode=eval_mode
                          )
         self.normalize = normalize
         self.proj_dim = proj_dim
@@ -48,14 +50,14 @@ class LESSEstimator(BaseEstimator):
     def run(self):
         grads_test = None
         if not self.all_gradients_exist(self.train_dataset, self.train_dataset_name, self.train_dataset_split, self.gradient_cache_dir):
-            self.get_gradients(self.train_dataset, gradient_type="adam" if self.adam_optimizer_state is not None else "sgd", dataset_name=self.train_dataset_name, dataset_split_name=self.train_dataset_split, gradient_cache_dir=self.gradient_cache_dir)
+            self.get_gradients(self.train_dataset, gradient_type="adam" if self.adam_optimizer_state is not None else "sgd", dataset_name=self.train_dataset_name, dataset_split_name=self.train_dataset_split, gradient_cache_dir=self.gradient_cache_dir, gradient_out_dir=self.gradient_out_dir)
         else:
             print("train grads cached")
             # grads_train = self.load_gradients(self.train_dataset, self.train_dataset_name, self.train_dataset_split)
         try:
             grads_test = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
         except (FileNotFoundError, RuntimeError):
-            self.get_gradients(self.test_dataset,  gradient_type="sgd", dataset_name=self.test_dataset_name, dataset_split_name=self.test_dataset_split,gradient_cache_dir=self.gradient_cache_dir)
+            self.get_gradients(self.test_dataset,  gradient_type="sgd", dataset_name=self.test_dataset_name, dataset_split_name=self.test_dataset_split,gradient_cache_dir=self.gradient_cache_dir, gradient_out_dir=self.gradient_out_dir)
             # grads_test = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
             self.run()
             return
@@ -75,15 +77,38 @@ class LESSEstimator(BaseEstimator):
     
         influence_matrix = torch.empty(n_test, n_train)
 
-        for i in tqdm(range(n_train), desc="Dot products"):
-            train_grad = self.get_gradient(self.train_dataset, self.train_dataset_name, self.train_dataset_split, i)
-            flat_train_grad = train_grad.view(1, -1)  # (1, D)
+
+        # for i in tqdm(range(n_train), desc="Dot products"):
+        #     train_grad = self.get_gradient(self.train_dataset, self.train_dataset_name, self.train_dataset_split, i)
+        #     flat_train_grad = train_grad.view(1, -1)  # (1, D)
             
 
-            dots = -flat_train_grad @ flat_grads_test.T  
+        #     dots = -flat_train_grad @ flat_grads_test.T  
             
 
-            influence_matrix[:, i] = dots.squeeze(0)
+        #     influence_matrix[:, i] = dots.squeeze(0)
+        
+        batch_size = 128  
+        for start in tqdm(range(0, n_train, batch_size), desc="Dot products"):
+            end = min(start + batch_size, n_train)
+
+
+            train_grads = self.get_gradient(
+                self.train_dataset,
+                self.train_dataset_name,
+                self.train_dataset_split,
+                list(range(start, end))  
+            )  
+
+            flat_train_grads = torch.stack(
+                [g.view(-1) for g in train_grads], dim=0
+            ) 
+         
+            dots = -flat_train_grads @ flat_grads_test.T 
+
+    
+            influence_matrix[:, start:end] = dots.T 
+
 
         self.influence_estimate = pd.DataFrame(
             influence_matrix.numpy(),
@@ -96,7 +121,7 @@ class LESSEstimator(BaseEstimator):
    
     
 
-    def get_gradients(self, dataset, gradient_type, dataset_name, dataset_split_name, gradient_cache_dir):
+    def get_gradients(self, dataset, gradient_type, dataset_name, dataset_split_name, gradient_cache_dir, gradient_out_dir):
   
 
         print("compute_gradient", flush=True)
@@ -118,7 +143,8 @@ class LESSEstimator(BaseEstimator):
             proj_dim=self.proj_dim,
             dataset_name=dataset_name, 
             dataset_split_name=dataset_split_name,
-            gradient_cache_dir=gradient_cache_dir
+            gradient_cache_dir=gradient_cache_dir,
+            gradient_out_dir=gradient_out_dir
         )
         
       
@@ -156,10 +182,29 @@ class LESSEstimator(BaseEstimator):
         return  list(grads_dict.values())[0].flatten()
  
 
+    def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
+        if isinstance(train_instance_idx, int):
+            grads_dict = super().get_gradient(dataset, dataset_name, dataset_split, train_instance_idx)
+            return list(grads_dict.values())[0].flatten()
+
+        elif isinstance(train_instance_idx, (list, tuple)):
+            
+            def fetch_grad(idx, get_grad_fn, dataset, dataset_name, dataset_split):
+                grads_dict = get_grad_fn(dataset, dataset_name, dataset_split, idx)
+                return list(grads_dict.values())[0].flatten()
+
+          
+            fetch_grad_partial = partial(fetch_grad, get_grad_fn=super().get_gradient,
+                                        dataset=dataset, dataset_name=dataset_name, dataset_split=dataset_split)
+
+            with ThreadPoolExecutor() as executor:
+                return list(executor.map(fetch_grad_partial, train_instance_idx))
+
+        else:
+            raise TypeError("train_instance_idx must be an int or a list/tuple of ints")
 
 
-
-def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_optimizer_state, gradient_cache_dir, dataset_name, dataset_split_name):
+def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_optimizer_state, gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split_name):
     try:
         if rank is None:
             rank = 0
@@ -169,7 +214,7 @@ def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_opti
         batch = Dataset.from_dict(batch)
         print("bs", rank)
         _get_gradients_batch(get_dataloader(tokenizer, batch), rank, model,  gradient_type, adam_optimizer_state, proj_dim,
-                                 gradient_cache_dir, dataset_name, dataset_split_name)
+                                 gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split_name)
 
 
     except Exception as e:
@@ -189,7 +234,7 @@ def get_dataloader(tokenizer, dataset, batch_size=1):
     print("There are {} examples in the dataset".format(len(dataset)))
     return dataloader
 def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_state, proj_dim,
-                         gradient_cache_dir=None, dataset_name=None, dataset_split_name=None):
+                         gradient_cache_dir=None, gradient_out_dir=None, dataset_name=None, dataset_split_name=None):
         from .estimator import store_gradient, gradient_exists
         print("_get_gradients_batch", rank)
         device = f"cuda:{rank % torch.cuda.device_count()}"
@@ -296,7 +341,7 @@ def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_
                         grads.append(proj_grad)
                         del grad
                 grad_dict = {row["indices"][0].item(): torch.cat([g.flatten() for g in grads])}
-                store_gradient(gradient_cache_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict)
+                store_gradient(gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict)
                 torch.cuda.empty_cache() 
     
             

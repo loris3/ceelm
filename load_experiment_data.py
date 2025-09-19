@@ -16,27 +16,31 @@ from linear_coders import MSECoderProjUSimp, KLTCoder, MSECoder, MSECoderNNLSL2,
 
 from datasets import load_dataset
 
-train_dataset_name = "loris3/tulu-3-sft-olmo-2-mixture-0225-sample"
-test_dataset_name = "loris3/tulu-3-sft-olmo-2-mixture-0225-sample"
+train_dataset_name = "loris3/tulu3-test-small"
+test_dataset_name = "loris3/tulu3-test-small"
 
 train_dataset_split = "train"
 test_dataset_split = "test"
 
 
 MODELS = [
-    "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
-    "./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
+    # "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
+    # "./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
     "./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42"
 ]
 
 
 explanation_types = [
-    KRandom,
     TopKMostInfluential,
     TopKLeastInfluential,
     TopKMostHelpful,
     TopKMostHarmful,
 ]
+
+explanation_k = [1, 2, 3, 4, 5, 10, 15, 20, 25]
+explanation_seed = [42, 123]
+
+
 linear_coders = [MSECoderProjUSimpSparse, MSECoderProjUSimp, KLTCoder, MSECoder, MSECoderNNLSL2, MSECoderProjUSimpSparseSoftThresh,
                 #  MSECoderElasticNet, CosineCoder, MSECoderLemon
                  ]
@@ -65,14 +69,14 @@ def load_data_and_estimators():
         estimators.extend([
             LESSEstimator(model,
                         train_dataset, train_dataset_name, train_dataset_split,
-                        test_dataset, test_dataset_name, test_dataset_split),
+                        test_dataset, test_dataset_name, test_dataset_split, eval_mode=True),
             DataInfEstimator(model,
                             train_dataset, train_dataset_name, train_dataset_split,
-                            test_dataset, test_dataset_name, test_dataset_split)
+                            test_dataset, test_dataset_name, test_dataset_split, eval_mode=True)
         ])
         
     indices = [ex["indices"] for ex in test_dataset]
     print(f"Total test examples: {len(indices)}")
     print(f"Unique indices: {len(set(indices))}")
 
-    return train_dataset, test_dataset, estimators
+    return train_dataset, test_dataset, estimators, 

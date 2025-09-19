@@ -21,7 +21,7 @@ import os
 import pandas as pd
 from concurrent.futures import as_completed
 
-
+from explanations import KRandom
     
 import logging
 logging.getLogger().setLevel(logging.WARNING)
@@ -56,7 +56,8 @@ if __name__ == "__main__":
     load_data_and_estimators,
     explanation_types,
     linear_coders,
-    
+    explanation_k,
+    explanation_seed
     )
     train_dataset, test_dataset, estimators = load_data_and_estimators()
 
@@ -93,7 +94,7 @@ if __name__ == "__main__":
 
     explanation_queue = []
 
-
+    
     for estimator in estimators:
         partial_results_dir =  os.path.join("./cache/scoring/partial/",
             estimator.get_config_string(),
@@ -103,13 +104,27 @@ if __name__ == "__main__":
             test_dataset_name,
             test_dataset_split,
             "partial")
-
+    
         explanations = [
             explanation_type(idx, estimator)
             for explanation_type in explanation_types
             for idx in range(len(test_dataset))
         ]
+        explanations = []
 
+        # TopK explanations
+        for base in explanation_types:
+            for k in explanation_k:
+                for idx in range(len(test_dataset)):
+                    explanations.append(base(idx, estimator, k=k))
+
+        # RandomK explanations
+        for k in explanation_k:
+            for seed in explanation_seed:
+                for idx in range(len(test_dataset)):
+                    explanations.append(KRandom(idx, estimator, k=k, seed=seed))
+                    
+                    
         explanation_queue.extend([
             (explanation, partial_results_dir) for explanation in explanations
         ])

@@ -38,10 +38,10 @@ def process_explanation(partial_results_dir, estimator, explanation, train_datas
         else:
             # run
             if test_grad is None: # load once
-                test_grad = estimator.get_gradient(test_dataset, os.path.basename(test_dataset_name), test_dataset_split, explanation.document_idx).to(device)
+                test_grad = estimator.get_gradient(test_dataset, os.path.basename(test_dataset_name), test_dataset_split, explanation.document_idx).to(device).to(torch.float32)
             if A is None: # load once
                 A = torch.stack(
-                    [estimator.get_gradient(train_dataset, os.path.basename(train_dataset_name), train_dataset_split, i) for i in explanation.documents]
+                    [estimator.get_gradient(train_dataset, os.path.basename(train_dataset_name), train_dataset_split, i).to(torch.float32) for i in explanation.documents]
                 ).to(device)
             o = linear_coder(A, test_grad, device=device, metadata_only=False, estimator_config=estimator.get_config_string())
             
