@@ -40,7 +40,7 @@ class DataInfEstimator(BaseEstimator):
         
         if self.fast_implementation:
             logger.info(f"Computing HVPs...")
-            self.influence_engine.compute_hvps(self.tokenized_train_dataset, self.train_dataset_name, self.train_dataset_split)
+            self.influence_engine.compute_hvps(self.tokenized_train_dataset, self.train_dataset_name, self.train_dataset_split, self.gradient_out_dir)
             logger.info(f"Computing IF...")
             self.influence_engine.compute_IF(self.tokenized_train_dataset, self.train_dataset_name, self.train_dataset_split)
         else:

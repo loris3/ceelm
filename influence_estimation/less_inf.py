@@ -157,7 +157,7 @@ class LESSEstimator(BaseEstimator):
                         try:
                             f.result()
                         except Exception as e:
-                            logger.error(f"Future {i} raised exception: {e}", exc_info=True)
+                            logger.error(f"Future raised exception: {e}", exc_info=True)
                             raise
 
   

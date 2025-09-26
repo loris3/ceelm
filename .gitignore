@@ -32,3 +32,4 @@ fi
 *.out
 tables/*
 tables/olmes-external.tex
+--blocking-factor=512

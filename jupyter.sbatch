@@ -10,7 +10,7 @@
 # # SBATCH --container-save=/srv/home/users/loriss21cs/cfe/cfe.sqsh
 #SBATCH --container-mount-home 
 #SBATCH --mem=36G
-#SBATCH --cpus-per-task=8  
+#SBATCH --cpus-per-task=32  
 #SBATCH --gres=gpu:0
 #SBATCH --time=0-7:59:00
 #SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
@@ -20,6 +20,7 @@
 # #SBATCH --partition=p_datamining
 export HF_HUB_ENABLE_HF_TRANSFER=1
 export WANDB_API_KEY=cba4442ed0417ba698aa1b18b17ee238f46945af
+ulimit -n 65535
 
 python3 --version
 

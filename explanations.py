@@ -26,7 +26,17 @@ class TopKMostHelpful(Explanation):
     @property
     def description(self):
         return f"Top-{self.k} most helpful (most negative scores)"
-    
+
+class Self(Explanation):
+    def __init__(self, document_idx, estimator, k=1):
+        super().__init__(document_idx,estimator)
+        self.k = k
+    @property
+    def documents(self):
+        return [self.document_idx]
+    @property
+    def description(self):
+        return f"The test instance (as a sanity check)"
 class KRandom(Explanation):
     def __init__(self, document_idx, estimator, k=10, seed=42):
         super().__init__(document_idx,estimator)
