@@ -10,7 +10,7 @@ parameters:
       - meta-llama/Llama-3.2-1B
       - Qwen/Qwen2.5-0.5B
   train_dataset:
-    value: allenai/tulu-3-sft-olmo-2-mixture-0225
+    value: loris3/tulu3-test
   train_split:
     value: train
 

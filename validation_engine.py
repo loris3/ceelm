@@ -19,7 +19,7 @@ logging.set_verbosity_error()
 class ChatTemplateCollator:
     def __init__(self, tokenizer, mlm=False, max_length=1024): # TODO
         self.tokenizer = tokenizer
-        
+
         self.max_length = max_length
         self.base_collator = DataCollatorForLanguageModeling(
             tokenizer=tokenizer, mlm=mlm, 
@@ -46,11 +46,33 @@ class ChatTemplateCollator:
             for i in range(len(tokenized["input_ids"]))
         ]
         return self.base_collator(batch)
+def find_max_batch_size(model, dataset, data_collator, device, start_bs=8, min_bs=1):
+    batch_size = start_bs
+    while batch_size >= min_bs:
+        try:
+            batch = [dataset[i] for i in range(min(batch_size, len(dataset)))]
+            batch = data_collator(batch)
+            batch = {k: v.to(device) for k, v in batch.items()}
+
+            with torch.no_grad():
+                _ = model(**batch)
+
+            torch.cuda.empty_cache()
+            return batch_size  # success
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                torch.cuda.empty_cache()
+                batch_size -=1  # halve and retry
+            else:
+                raise e
+    return min_bs
+
 
 class ValidationEngine():
     def __init__(self, adapter_path, device="cuda"):
 
-
+        self.gradient_accumulation_steps = None
+        self.per_device_bs = None
         self.device = device
         self.adapter_path = adapter_path
         self.tokenizer = AutoTokenizer.from_pretrained(self.adapter_path, padding_side='left')
@@ -67,46 +89,93 @@ class ValidationEngine():
         
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token # TODO
-    def get_log_p(self, model, examples, max_new_tokens=256):
-        model.eval()
-        log_probs = []
+    # def get_log_p(self, model, examples, max_new_tokens=256):
+    #     model.eval()
+    #     log_probs = []
 
-        for ex in examples:
-            if isinstance(ex, str):
-                ex = {"messages": ex}
+    #     for ex in examples:
+    #         if isinstance(ex, str):
+    #             ex = {"messages": ex}
 
 
-            batch = self.data_collator([ex])
-            batch = {k: v.to(self.device) for k, v in batch.items()}
-            input_ids = batch["input_ids"]
-            attention_mask = batch["attention_mask"]
+    #         batch = self.data_collator([ex])
+    #         batch = {k: v.to(self.device) for k, v in batch.items()}
+            
+    #         input_ids = batch["input_ids"]
+    #         attention_mask = batch["attention_mask"]
 
-            with torch.no_grad():
+    #         with torch.no_grad():
     
-                outputs = model.generate(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    return_dict_in_generate=True,
-                    output_scores=True,
-                    do_sample=False 
-                )
+    #             outputs = model.generate(
+    #                 input_ids=input_ids,
+    #                 attention_mask=attention_mask,
+    #                 return_dict_in_generate=True,
+    #                 output_scores=True,
+    #                 do_sample=False 
+    #             )
 
 
-                scores = torch.stack(outputs.scores, dim=1)  # (B=1, seq_len, V)
+    #             scores = torch.stack(outputs.scores, dim=1)  # (B=1, seq_len, V)
 
-                gen_ids = outputs.sequences[:, input_ids.shape[1]:]  
+    #             gen_ids = outputs.sequences[:, input_ids.shape[1]:]  
 
 
-                log_probs_seq = F.log_softmax(scores, dim=-1)
-                token_logp = log_probs_seq.gather(-1, gen_ids.unsqueeze(-1)).squeeze(-1) 
+    #             log_probs_seq = F.log_softmax(scores, dim=-1)
+    #             token_logp = log_probs_seq.gather(-1, gen_ids.unsqueeze(-1)).squeeze(-1) 
                 
-                # sum to get total log prob
-                total_logp = token_logp.sum(dim=1)  # (1,)
-                log_probs.append(total_logp.item())
+    #             # sum to get total log prob
+    #             total_logp = token_logp.sum(dim=1)  # (1,)
+    #             log_probs.append(total_logp.item())
 
-            del batch, outputs, scores, gen_ids, token_logp
-            torch.cuda.empty_cache()
-        return torch.tensor(log_probs, device=self.device)
+    #         del batch, outputs, scores, gen_ids, token_logp
+    #         torch.cuda.empty_cache()
+    #     return torch.tensor(log_probs, device=self.device)
+    def _mask_last_assistant(self, ex, input_ids):
+            """Return a boolean mask for tokens corresponding to the last assistant message."""
+            # Apply chat template to get full text
+            text = self.tokenizer.apply_chat_template(ex["messages"], tokenize=False)
+            # tokens = self.tokenizer(text)["input_ids"]
+            # Find start of last assistant message
+            last_idx = text.rfind("<|assistant|>")  # template marker
+            # Tokenize only last assistant message
+            last_text = text[last_idx:]
+            last_tokens = self.tokenizer(last_text)["input_ids"]
+
+            mask = torch.zeros_like(input_ids, dtype=torch.bool)
+            mask[-len(last_tokens):] = True  # mask last assistant tokens only
+            return mask
+    def get_log_p(self, model, examples):
+            """Compute log-probabilities for only the last assistant response."""
+            model.eval()
+            log_probs = []
+
+            for ex in examples:
+                if isinstance(ex, str):
+                    ex = {"messages": ex}
+
+                batch = self.data_collator([ex])
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+
+                input_ids = batch["input_ids"].clone()
+                attention_mask = batch["attention_mask"].clone()
+
+
+                last_assistant_mask = self._mask_last_assistant(ex, input_ids)
+                labels = input_ids.clone()
+                labels[~last_assistant_mask] = -100  # ignore tokens not part of last assistant
+                batch["labels"] = labels
+
+                with torch.no_grad():
+                    outputs = model(**batch)
+                    # loss already averages over non-ignored tokens, multiply by number of tokens
+                    seq_len = last_assistant_mask.sum(dim=1)
+                    log_p = -outputs.loss * seq_len
+                    log_probs.append(log_p.item())
+
+                del batch, outputs, labels, last_assistant_mask
+                torch.cuda.empty_cache()
+
+            return torch.tensor(log_probs, device=self.device)
 
     # def get_log_p(self, model, examples):
     #     model.eval()
@@ -172,16 +241,20 @@ class ValidationEngine():
         for name, param in model.named_parameters():
             if "lora" in name:
                 param.requires_grad = True
-
-        per_device_bs = 2
+        print("model.config._name_or_path",model.config._name_or_path)
         train_len = len(train_dataset)
-        gradient_accumulation_steps = max(1, train_len // per_device_bs)
-        print("gradient_accumulation_steps",gradient_accumulation_steps, "train_len",train_len,flush=True)
+        if self.gradient_accumulation_steps is None:
+            self.per_device_bs = find_max_batch_size(
+            model, train_dataset, self.data_collator, self.device, start_bs=8
+            )
+            
+            self.gradient_accumulation_steps = max(1, (train_len // self.per_device_bs)+1)   
+            print("gradient_accumulation_steps",self.gradient_accumulation_steps, "per_device_bs", self.per_device_bs, "train_len",train_len,flush=True)
 
 
         training_args = TrainingArguments(
-            per_device_train_batch_size=per_device_bs,
-            gradient_accumulation_steps=gradient_accumulation_steps,
+            per_device_train_batch_size=self.per_device_bs,
+            gradient_accumulation_steps=self.gradient_accumulation_steps,
             remove_unused_columns=False,
             num_train_epochs=3,
             learning_rate=1e-2,
@@ -204,4 +277,6 @@ class ValidationEngine():
             )
             trainer.train(resume_from_checkpoint=False)
         return model
+
+
 

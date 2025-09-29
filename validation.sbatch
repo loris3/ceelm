@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name="[CFE] Validation"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
-#SBATCH --nodelist=dgx-h100-em2,dgx1,shelob
+#SBATCH --nodelist=dgx-h100-em2
+#,dgx1,shelob
 #SBATCH --container-mount-home
 #SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
 #SBATCH --mem=40G
@@ -9,14 +10,14 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=1-1:00:00
 #SBATCH --nodes=1
-#SBATCH --array=0-9%6  
+#SBATCH --array=0-9%16  
 #SBATCH --partition=p_low
 #SBATCH --requeue
 echo "SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 python3 --version
 df -h
 ulimit -n 65535
-
+export HF_TOKEN=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
 export HF_TRANSFER=1
 export HF_HOME=/tmp/hf_cache
 export HF_DATASETS_CACHE=/tmp/hf_cache/datasets
@@ -26,7 +27,7 @@ export HF_MODULES_CACHE=/tmp/hf_cache/modules
 SEEDS=(42 10 3 9 6)
 
 
-OTHER_TYPES=("Self","TopKMostInfluential" "TopKLeastInfluential" "TopKMostHelpful" "TopKMostHarmful")
+OTHER_TYPES=("Self" "TopKMostInfluential" "TopKLeastInfluential" "TopKMostHelpful" "TopKMostHarmful")
 
 
 if [ $SLURM_ARRAY_TASK_ID -lt ${#SEEDS[@]} ]; then

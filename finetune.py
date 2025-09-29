@@ -1,4 +1,4 @@
-# python3 -m accelerate.commands.launch finetune.py
+# python3 -m wandb sweep --project=cfe_finetuning sweep.yaml
 import os
 import wandb
 import torch
@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from accelerate import Accelerator
 from typing import Optional
 import json
+from trl import SFTConfig, SFTTrainer
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -18,7 +19,6 @@ from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, TaskType, PeftModel
 
 
-CHAT_TEMPLATE = "{{ bos_token }}{% for message in messages %}{% if message['role'] == 'system' %}{{ '<|system|>\n' + message['content'] + '\n' }}{% elif message['role'] == 'user' %}{{ '<|user|>\n' + message['content'] + '\n' }}{% elif message['role'] == 'assistant' %}{% if not loop.last %}{{ '<|assistant|>\n'  + message['content'] + eos_token + '\n' }}{% else %}{{ '<|assistant|>\n'  + message['content'] + eos_token }}{% endif %}{% endif %}{% if loop.last and add_generation_prompt %}{{ '<|assistant|>\n' }}{% endif %}{% endfor %}"
 
 @dataclass
 class ModelArguments:
@@ -37,55 +37,13 @@ class DataArguments:
 class CustomTrainingArguments(TrainingArguments):
     wandb_project: Optional[str] = field(default="cfe_finetuning")
     ddp_find_unused_parameters: Optional[bool] = field(default=False)
-    save_strategy: str = field(default="epoch")  
-    save_total_limit: int = field(default=2)   
+    save_strategy: str = field(default="steps")  
+    save_total_limit: int = field(default=5)  
+    save_steps: int = field(default=500)   
 from datasets import load_from_disk
 
-def apply_chat_template_safe(messages, tokenizer):
-    return tokenizer.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=False
-    )
 
 
-
-def tokenize(example, tokenizer, max_length=4096):
-    text = apply_chat_template_safe(example["messages"], tokenizer)
-  
-    return tokenizer(
-        text,
-        truncation=True,
-        padding="max_length",
-        max_length=max_length
-    )
-
-
-def tokenize_dataset(dataset, tokenizer, max_length=4096, num_proc=20, re_index=True):
-    
-    from functools import partial
-    tokenized_dataset = dataset.map(
-        partial(tokenize, tokenizer=tokenizer, max_length=max_length),
-        batched=True,
-        remove_columns=[c for c in dataset.column_names if c != "indices"],
-        num_proc=num_proc
-    )
-
-    def add_index(example, idx):
-        example["indices"] = idx
-        return example
-
-    if re_index:
-        tokenized_dataset = tokenized_dataset.map(add_index, with_indices=True, num_proc=num_proc)
-
-    return tokenized_dataset
-
-
-
-def load_tokenizer(tokenizer_path):
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        tokenizer.chat_template = CHAT_TEMPLATE
-        if tokenizer.pad_token is None:
-                tokenizer.pad_token = tokenizer.eos_token
-        return tokenizer    
 
 
 if __name__ == "__main__":
@@ -99,19 +57,10 @@ if __name__ == "__main__":
     ft_model_name = f"{os.path.basename(model_args.base_model)}_{os.path.basename(data_args.train_dataset)}_lr{training_args.learning_rate}_seed{training_args.seed}"
     os.environ["WANDB_PROJECT"] = training_args.wandb_project
     os.environ["WANDB_NAME"] = ft_model_name
-    tokenizer = AutoTokenizer.from_pretrained(model_args.base_model)
-    tokenizer.chat_template = CHAT_TEMPLATE
-    if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
+    
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_args.base_model,    
-        torch_dtype=torch.bfloat16,
-        low_cpu_mem_usage=True   
-    )
-   
-   
-    # model.resize_token_embeddings(len(tokenizer))
+
+
     target_modules = None
     if "OLMo" in model_args.base_model:
         target_modules = ["c_attn", "q_proj", "v_proj"]
@@ -123,8 +72,7 @@ if __name__ == "__main__":
         target_modules = ["q_proj", "k_proj", "v_proj", "o_proj"]
 
     else:
-        for name, module in model.named_modules():
-            print(name)
+
         raise NotImplementedError
 
 
@@ -137,33 +85,59 @@ if __name__ == "__main__":
         task_type=TaskType.CAUSAL_LM
     )
     
-    # model.gradient_checkpointing_enable()
-    model = get_peft_model(model, lora_config)
-    model.print_trainable_parameters()
 
+  
+
+
+    training_args.output_dir = os.path.join("./models/",ft_model_name)
+    os.makedirs(training_args.output_dir, exist_ok=True)
     
-    max_length = min(4096,getattr(model.config, "max_position_embeddings", tokenizer.model_max_length))
-    tokenized_dataset_path = os.path.join("./cache","ft_tokenized_datasets", model_args.base_model, os.path.basename(data_args.train_dataset))
 
-    tokenized_train = load_from_disk(tokenized_dataset_path)
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+        
 
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=tokenized_train,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
+    sft_config = SFTConfig(
+        chat_template_path="./chat_template.jinja",
+        assistant_only_loss=True,
+        model_init_kwargs={"torch_dtype": torch.bfloat16, "low_cpu_mem_usage": True},
+        output_dir=training_args.output_dir,
+        per_device_train_batch_size=training_args.per_device_train_batch_size,
+        learning_rate=training_args.learning_rate,
+        gradient_accumulation_steps=training_args.gradient_accumulation_steps,
+        num_train_epochs=training_args.num_train_epochs,
+        logging_steps=training_args.logging_steps,
+        save_strategy=training_args.save_strategy,
+        save_total_limit=training_args.save_total_limit,
+        report_to=training_args.report_to,
+        seed=training_args.seed,
+        packing=False,
     )
+    
+    dataset = load_dataset(data_args.train_dataset, split="train")
+    trainer = SFTTrainer(
+       
+        model =model_args.base_model,
+        args=sft_config,
+        train_dataset=dataset,
+ 
+        peft_config=lora_config,
+
+    )
+
     torch.cuda.empty_cache()
 
-    trainer.train()#(resume_from_checkpoint=True)
-    training_args.output_dir = os.path.join("./models/",ft_model_name)
-    tokenizer.model_max_length = max_length
-    tokenizer.save_pretrained(training_args.output_dir)
     
 
-    model.save_pretrained(training_args.output_dir)
+    checkpoint_dir = training_args.output_dir
+    if any(f.startswith("checkpoint") for f in os.listdir(checkpoint_dir)):
+        trainer.train(resume_from_checkpoint=True)
+    else:
+        trainer.train()
+        
+    
+
+
+    trainer.model.save_pretrained(training_args.output_dir)
+
     
     trainer.save_state()
 
@@ -181,10 +155,10 @@ if __name__ == "__main__":
         }, f, indent=4)
 
 
-    if isinstance(model, PeftModel):
-        pytorch_model_path = os.path.join(training_args.output_dir, "pytorch_model_fsdp.bin")
-        if os.path.exists(pytorch_model_path):
-            os.remove(pytorch_model_path)
+
+    pytorch_model_path = os.path.join(training_args.output_dir, "pytorch_model_fsdp.bin")
+    if os.path.exists(pytorch_model_path):
+        os.remove(pytorch_model_path)
 
     torch.save(trainer.optimizer.state_dict(), os.path.join(training_args.output_dir, "optimizer.pt"))
     wandb.finish()

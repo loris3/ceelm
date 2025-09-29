@@ -151,6 +151,8 @@ class BaseEstimator(ABC):
         self.influence_estimate.columns = self.train_dataset["indices"]
         self.influence_estimate.to_parquet(self.influence_estimate_path)
         logger.info(f"Saved influence estimate to disk")
+        shutil.rmtree(self.gradient_cache_dir, ignore_errors=True)
+        logger.info(f"Deleted gradient_cache_dir")
 
 
     def run_cached(self):

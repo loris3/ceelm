@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=1-1:00:00
 #SBATCH --nodes=1
-#SBATCH --array=0-9%6  
+#SBATCH --array=0-9%16  
 #SBATCH --partition=p_low
 #SBATCH --requeue
 echo "SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
@@ -21,7 +21,7 @@ export HF_TRANSFER=1
 export HF_HOME=/tmp/hf_cache
 export HF_DATASETS_CACHE=/tmp/hf_cache/datasets
 export HF_MODULES_CACHE=/tmp/hf_cache/modules
-
+export HF_TOKEN=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
 
 SEEDS=(42 10 3 9 6)
 

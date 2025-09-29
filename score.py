@@ -206,10 +206,9 @@ if __name__ == "__main__":
             explanations = []
 
             if args.explanation_type == "KRandom":
-                for seed in explanation_seed:
-                    for k in explanation_k:
-                        for idx in range(len(test_dataset)):
-                            explanations.append(KRandom(idx, estimator, k=k, seed=args.seed))
+                for k in explanation_k:
+                    for idx in range(len(test_dataset)):
+                        explanations.append(KRandom(idx, estimator, k=k, seed=args.seed))
             elif args.explanation_type == "Self":
                 for idx in range(len(test_dataset)):
                     explanations.append(Self(idx, estimator, k=1))
