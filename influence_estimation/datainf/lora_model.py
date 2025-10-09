@@ -184,7 +184,6 @@ def _compute_gradient_batch(dataloader, rank, model, param_projectors,
     for row in tqdm(dataloader, position=rank, desc=f"Worker {rank}"):
         if not  gradient_exists(gradient_cache_dir, dataset_name, dataset_split_name, row["indices"][0].item()):
             model.zero_grad()
-            row['labels'] = row['input_ids']
             row.to(device)
             outputs = model(**row)
             loss = outputs.loss

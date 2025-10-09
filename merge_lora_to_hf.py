@@ -13,12 +13,10 @@ def merge_lora_to_hf(base_model: str, adapter_dir: str, output_dir: str):
     print("Merging LoRA adapters into base model...")
     model = model.merge_and_unload()
 
-
     print(f"Saving merged model to: {output_dir}")
     model.save_pretrained(output_dir)
 
-    tokenizer = AutoTokenizer.from_pretrained(adapter_dir)
-    print("tokenizer.chat_template",tokenizer.chat_template)
+    tokenizer = AutoTokenizer.from_pretrained(base_model)
     tokenizer.save_pretrained(output_dir)
 
     print("done!")

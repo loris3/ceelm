@@ -80,8 +80,9 @@ def process(
             "indices_target_document",
             "delta_target_document"
         ])
+        # if everything before max_len is masked (i.e. "user"), log_p will be nan -> delta nan
+        # we still write the result and filter these instances later
 
-        assert df.notnull().all().all(), "DataFrame contains missing values"
         df.to_parquet(results_path, index=False)
 
     except Exception as e:

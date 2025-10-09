@@ -5,7 +5,7 @@ import pyarrow.parquet as pq
 
 def merge_fragments_with_source_column_parallel(source_dir, target_dir):
 
-    if not os.path.exists(target_dir):
+    if True or not os.path.exists(target_dir):
         print(f"Loading {source_dir}" )
         tmp_dataset = ds.dataset(source_dir, format="parquet")
         print(f"Merging {source_dir}" )

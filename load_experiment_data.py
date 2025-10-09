@@ -24,9 +24,9 @@ test_dataset_split = "test"
 
 
 MODELS = [
-    "./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
-     "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
-      "./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42",
+    "./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
+    #  "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
+    #   "./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
 ]
 
 
@@ -37,7 +37,8 @@ explanation_types = [
     TopKMostHarmful,
 ]
 
-explanation_k = [1, 2, 3, 4, 5, 10, 15, 20, 25][::-1]
+# explanation_k = [1, 2, 3, 4, 5, 10, 15, 20, 25]
+explanation_k = [1, 5, 10, 25]
 explanation_seed = [42, 10, 3, 9, 6]
 
 

@@ -18,9 +18,9 @@ ulimit -n 65535
 pip show datasets
 
 MODELS=(
-  "allenai/OLMo-2-0425-1B ./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42"
-  "meta-llama/Llama-3.2-1B ./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42"
-  "Qwen/Qwen-2.5-0.5B ./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr1e-05_seed42"
+  "allenai/OLMo-2-0425-1B ./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42"
+  "meta-llama/Llama-3.2-1B ./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42"
+  "Qwen/Qwen-2.5-0.5B ./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42"
 )
 
 # Extract model + directory based on task ID

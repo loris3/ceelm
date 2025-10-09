@@ -3,11 +3,11 @@ import pandas as pd
 import pickle
 from tqdm import tqdm
 from peft import PeftModel
-from finetune import tokenize_dataset
+
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+from influence_estimation.util import tokenize_dataset
 
 logging.basicConfig(
     level=logging.DEBUG,  
@@ -58,9 +58,8 @@ class LESSEstimator(BaseEstimator):
             grads_test = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
         except (FileNotFoundError, RuntimeError):
             self.get_gradients(self.test_dataset,  gradient_type="sgd", dataset_name=self.test_dataset_name, dataset_split_name=self.test_dataset_split,gradient_cache_dir=self.gradient_cache_dir, gradient_out_dir=self.gradient_out_dir)
-            # grads_test = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
-            self.run()
-            return
+            grads_test = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
+     
         
         
         # flat_grads_train = torch.stack(list(grads_train.values()),dim=0)
@@ -123,7 +122,17 @@ class LESSEstimator(BaseEstimator):
 
     def get_gradients(self, dataset, gradient_type, dataset_name, dataset_split_name, gradient_cache_dir, gradient_out_dir):
   
-
+        dataset = tokenize_dataset(
+            dataset,
+            tokenizer=self.tokenizer,
+            max_length=4096,
+            chat_template_path="./chat_template.jinja", 
+            assistant_only_loss=True,
+            text_column="messages",
+            num_proc=20,
+            re_index=True 
+        ).remove_columns("messages")
+        
         print("compute_gradient", flush=True)
         
         
@@ -176,10 +185,7 @@ class LESSEstimator(BaseEstimator):
 
 
 
-   
-    def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
-        grads_dict = super().get_gradient(dataset, dataset_name, dataset_split, train_instance_idx)
-        return  list(grads_dict.values())[0].flatten()
+
  
 
     def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
@@ -205,6 +211,7 @@ class LESSEstimator(BaseEstimator):
 
 
 def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_optimizer_state, gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split_name):
+    
     try:
         if rank is None:
             rank = 0
@@ -213,6 +220,7 @@ def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_opti
 
         batch = Dataset.from_dict(batch)
         print("bs", rank)
+        print(rank, batch[0]["indices"], "to", batch[-1]["indices"])
         _get_gradients_batch(get_dataloader(tokenizer, batch), rank, model,  gradient_type, adam_optimizer_state, proj_dim,
                                  gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split_name)
 
@@ -225,10 +233,8 @@ def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_opti
 def get_dataloader(tokenizer, dataset, batch_size=1):
     data_collator = DataCollatorForSeq2Seq(
             tokenizer=tokenizer, padding="longest") 
-    
-    
 
-    dataloader = DataLoader(tokenize_dataset(dataset, tokenizer, num_proc=20, re_index=False),
+    dataloader = DataLoader(dataset,
                             batch_size=batch_size,  # When getting gradients, we only do this single batch process
                             collate_fn=data_collator)
     print("There are {} examples in the dataset".format(len(dataset)))
@@ -321,10 +327,10 @@ def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_
         for row in tqdm(dataloader, position=rank, desc=f"Worker {rank}"):
             if not  gradient_exists(gradient_cache_dir, dataset_name, dataset_split_name, row["indices"][0].item()):
                 model.zero_grad()
-                row['labels'] = row['input_ids']
+               
                 row.to(device)
                 outputs = model(**row)
-                loss = outputs.loss
+                loss = outputs.loss # only on the assistant parts (everything else is masked as set to -100)
                 loss.backward()
                 grads = []
                 for k, v in model.named_parameters():
@@ -341,6 +347,7 @@ def _get_gradients_batch(dataloader, rank, model, gradient_type, adam_optimizer_
                         grads.append(proj_grad)
                         del grad
                 grad_dict = {row["indices"][0].item(): torch.cat([g.flatten() for g in grads])}
+                
                 store_gradient(gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split=dataset_split_name, gradient_dict=grad_dict)
                 torch.cuda.empty_cache() 
     

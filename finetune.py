@@ -1,4 +1,7 @@
+# python3 -m wandb sweep --project=cfe_finetuning sweep_test.yaml
 # python3 -m wandb sweep --project=cfe_finetuning sweep.yaml
+
+
 import os
 import wandb
 import torch
@@ -36,7 +39,7 @@ class DataArguments:
 @dataclass
 class CustomTrainingArguments(TrainingArguments):
     wandb_project: Optional[str] = field(default="cfe_finetuning")
-    ddp_find_unused_parameters: Optional[bool] = field(default=False)
+
     save_strategy: str = field(default="steps")  
     save_total_limit: int = field(default=5)  
     save_steps: int = field(default=500)   
@@ -110,6 +113,8 @@ if __name__ == "__main__":
         report_to=training_args.report_to,
         seed=training_args.seed,
         packing=False,
+        gradient_checkpointing=False,
+        ddp_find_unused_parameters=False,
     )
     
     dataset = load_dataset(data_args.train_dataset, split="train")
@@ -120,6 +125,7 @@ if __name__ == "__main__":
         train_dataset=dataset,
  
         peft_config=lora_config,
+     
 
     )
 

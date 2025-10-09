@@ -35,3 +35,7 @@ tables/olmes-external.tex
 --blocking-factor=512
 models_causal/*
 results.tar.gz
+*.csv
+*.tex
+
+output.png

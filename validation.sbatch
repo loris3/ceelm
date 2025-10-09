@@ -1,8 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="[CFE] Validation"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
-#SBATCH --nodelist=dgx-h100-em2
-#,dgx1,shelob
+#SBATCH --nodelist=dgx-h100-em2,dgx1,shelob,galadriel
 #SBATCH --container-mount-home
 #SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
 #SBATCH --mem=40G
@@ -13,6 +12,7 @@
 #SBATCH --array=0-9%16  
 #SBATCH --partition=p_low
 #SBATCH --requeue
+#SBATCH --reservation=admin_shelob
 echo "SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 python3 --version
 df -h

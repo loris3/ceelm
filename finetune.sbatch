@@ -16,9 +16,8 @@ python3 --version
 df -h
 export HF_TOKEN=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
 export HF_TRANSFER=1
-export HF_HOME=/tmp/hf_cache
-export HF_DATASETS_CACHE=/tmp/hf_cache/datasets
-export HF_MODULES_CACHE=/tmp/hf_cache/modules
 
+export TOKENIZERS_PARALLELISM=true
 
-python3 -m wandb agent loriss/cfe_finetuning/xccgs23r
+python3 -m  wandb agent loriss/cfe_finetuning/tsbm7skf
+python3 -m  wandb agent loriss/cfe_finetuning/9pehckf1

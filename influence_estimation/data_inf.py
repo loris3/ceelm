@@ -7,9 +7,9 @@ from influence_estimation.datainf.lora_model import LORAEngineGeneration
 from influence_estimation.datainf.influence import IFEngineGeneration
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-
-from finetune import tokenize_dataset
+from influence_estimation.util import tokenize_dataset
 import util
+
 
 # Configure logger at module level
 logger = logging.getLogger(__name__)
@@ -55,7 +55,16 @@ class DataInfEstimator(BaseEstimator):
         
     def get_gradients(self):
 
-        self.tokenized_train_dataset = tokenize_dataset(self.train_dataset, self.tokenizer)
+        self.tokenized_train_dataset = tokenize_dataset(
+            self.train_dataset, 
+            tokenizer=self.tokenizer,
+            max_length=4096,
+            chat_template_path="./chat_template.jinja", 
+            assistant_only_loss=True,
+            text_column="messages",
+            num_proc=20,
+            re_index=True
+        ).remove_columns("messages")
         
         if not self.lora_engine.all_gradients_exist(self.train_dataset, self.train_dataset_name, self.train_dataset_split, self.gradient_cache_dir):
             self.lora_engine.compute_gradient(self.tokenized_train_dataset, self.tokenizer, self.train_dataset_name, self.train_dataset_split, self.gradient_cache_dir, self.gradient_out_dir)        
@@ -65,8 +74,18 @@ class DataInfEstimator(BaseEstimator):
         try:
             self.test_grad_dict = self.load_gradients(self.test_dataset, self.test_dataset_name, self.test_dataset_split)
         except (FileNotFoundError, RuntimeError):
-            tokenized_test_dataset = tokenize_dataset(self.test_dataset, self.tokenizer)
-            self.lora_engine.compute_gradient(tokenized_test_dataset,  self.tokenizer, self.test_dataset_name, self.test_dataset_split, self.gradient_cache_dir, self.gradient_out_dir)
+            self.tokenized_test_dataset = tokenize_dataset(
+                self.test_dataset, 
+                tokenizer=self.tokenizer,
+                max_length=4096,
+                chat_template_path="./chat_template.jinja", 
+                assistant_only_loss=True,
+                text_column="messages",
+                num_proc=10,
+                re_index=True
+            ).remove_columns("messages")
+            
+            self.lora_engine.compute_gradient(self.tokenized_test_dataset,  self.tokenizer, self.test_dataset_name, self.test_dataset_split, self.gradient_cache_dir, self.gradient_out_dir)
             self.get_gradients()
             return
 
