@@ -2,134 +2,100 @@ import os
 import random
 import torch
 import pandas as pd
+import argparse
 from datasets import load_dataset
 from validation_engine import ValidationEngine
-from load_experiment_data import (
-    load_data_and_estimators,
-    train_dataset_name,
-    test_dataset_name,
-    train_dataset_split,
-    test_dataset_split,
-)
-from explanations import Self, KRandom
+from load_experiment_data import load_data_and_estimators
+from explanations import KRandom
+
+from tqdm import tqdm
+
+parser = argparse.ArgumentParser(description="Validation of validation experiment runner")
+parser.add_argument("--lr", type=float, required=True, help="Learning rate")
+parser.add_argument("--epoch", type=int, required=True, help="Number of epochs")
+parser.add_argument("--repeat", type=int, required=True, help="Repeat count for training examples")
+args = parser.parse_args()
+
+lr = args.lr
+epoch = args.epoch
+repeat = args.repeat
 
 
+n_examples = 100
 torch.manual_seed(42)
 random.seed(42)
 
 train_dataset, test_dataset, estimators = load_data_and_estimators()
-estimator = estimators[1] 
-print("Using estimator:", estimator.model_path)
+estimator = estimators[1]  # just to get model
 
-
+# out-of-distribution dataset (still tokenized using conversational format)
 ood_ds = load_dataset("allenai/tulu-3-sft-personas-instruction-following")["train"]
 ood_ds = ood_ds.map(
-    lambda example: {"messages": example["messages"]},
-    remove_columns=[col for col in ood_ds.column_names if col != "messages"]
+    lambda ex: {"messages": ex["messages"]},
+    remove_columns=[c for c in ood_ds.column_names if c != "messages"],
 )
 
+indices = random.sample(range(len(test_dataset)), n_examples + 1)
+print(f"Total indices: {len(indices)}")
 
 
-lrs = [1e-5, 1e-4,]#1e-6, ]
-epochs_list = [1,]#2,8,16,32]
-repeats = [1,]#2,8,16,32]
+parquet_folder = f"cache/validation_of_validation/{lr}/{epoch}/{repeat}"
+os.makedirs(parquet_folder, exist_ok=True)
 
-indices = list(random.sample(range(len(test_dataset)), 100))#[0:10]
-print("Total indices:", len(indices))
+print(f"LR={lr}, Epochs={epoch}, Repeat={repeat}")
 
+engine = ValidationEngine(estimator.model_path, lr=lr, epochs=epoch)
 
-parquet_file = "cache/validation_of_validation/deltas_real.parquet"
-os.makedirs(os.path.dirname(parquet_file), exist_ok=True)
-
-# Load or create DataFrame to store results
-if os.path.exists(parquet_file):
-    df = pd.read_parquet(parquet_file)
-else:
-    df = pd.DataFrame(columns=[
-        "LR", "Epoch", "Repeat", "Index", "Kind",
-        "Delta", "log_p_before", "log_p_after", "JSD", "KL"
-    ])
+df = pd.DataFrame()
 
 
-for lr in lrs:
-    for epoch in epochs_list:
-        engine = ValidationEngine(estimator.model_path, lr=lr, epochs=epoch)
+for idx in tqdm(indices):
+    torch.manual_seed(42)
+    random.seed(42)
 
-        for repeat in repeats:
-            print(f"=== LR={lr}, Epochs={epoch}, Repeat={repeat} ===")
-            torch.manual_seed(42)
-            random.seed(42)
+    parquet_path = os.path.join(parquet_folder, f"{idx}.parquet")
+    if os.path.exists(parquet_path):
+        continue
 
-            for idx in indices:
-                if ((df["LR"] == lr) & (df["Epoch"] == epoch) &
-                    (df["Index"] == idx) & (df["Repeat"] == repeat)).any():
-                    continue
+    test_ex = test_dataset.select([idx])
 
+    rand_docs = KRandom(idx, estimator, k=1).documents
+    train_ex = train_dataset.select(rand_docs * repeat)
+    metrics_random = engine.score(train_ex, test_ex, seed=42)
 
-             
-                test_examples = test_dataset.select([idx])
-                
-                explanation = KRandom(idx, estimator, k=1)
-                train_examples = train_dataset.select(explanation.documents * repeat)
-                metrics_random = engine.score(train_examples, test_examples, seed=42)
-                
-                train_examples = test_dataset.select([idx] * repeat)
-                print("train_examples", train_examples["messages"])
-                print("test_examples", test_examples["messages"])
-                assert train_examples[0] == test_examples[0]
-                metrics_exact = engine.score(test_examples, test_examples, seed=42)
+    train_ex = test_dataset.select([idx] * repeat)
+    metrics_exact = engine.score(test_ex, test_ex, seed=42)
 
+    train_ex = ood_ds.select([idx] * repeat)
+    metrics_ood = engine.score(train_ex, test_ex, seed=42)
 
-                train_examples = ood_ds.select([idx] * repeat)
-                metrics_ood = engine.score(train_examples, test_examples, seed=42)
-                exact_docs = Self(idx, estimator, k=1).documents
-                random_docs = KRandom(idx, estimator, k=1, seed=42).documents
-                print("Exact:", exact_docs, "Random:", random_docs)
+    print(f"Index {idx}: Exact vs Random vs OOD comparison")
+    print(
+        "Exact >= Random?",
+        metrics_exact["delta_log_p"].mean().item() >= metrics_random["delta_log_p"].mean().item(),
+        "| KL >= Random?",
+        metrics_exact["kld(before||after)"].mean().item() >= metrics_random["kld(before||after)"].mean().item(),
+        "| JSD >= Random?",
+        metrics_exact["jsd"].mean().item() >= metrics_random["jsd"].mean().item(),
+    )
 
-                new_rows = pd.DataFrame([
-                    {
-                        "LR": lr, "Epoch": epoch, "Index": idx, "Repeat": repeat,
-                        "Kind": "exact",
-                        "Delta": metrics_exact["delta_log_p"].mean().item(),
-                        "log_p_before": metrics_exact["log_p_before_ft"].mean().item(),
-                        "log_p_after": metrics_exact["log_p_after_ft"].mean().item(),
-                        "JSD": metrics_exact["jsd"].mean().item(),
-                        "KL": metrics_exact["kl(before||after)"].mean().item()
-                    },
-                    {
-                        "LR": lr, "Epoch": epoch, "Index": idx, "Repeat": repeat,
-                        "Kind": "random",
-                        "Delta": metrics_random["delta_log_p"].mean().item(),
-                        "log_p_before": metrics_random["log_p_before_ft"].mean().item(),
-                        "log_p_after": metrics_random["log_p_after_ft"].mean().item(),
-                        "JSD": metrics_random["jsd"].mean().item(),
-                        "KL": metrics_random["kl(before||after)"].mean().item()
-                    },
-                    {
-                        "LR": lr, "Epoch": epoch, "Index": idx, "Repeat": repeat,
-                        "Kind": "ood",
-                        "Delta": metrics_ood["delta_log_p"].mean().item(),
-                        "log_p_before": metrics_ood["log_p_before_ft"].mean().item(),
-                        "log_p_after": metrics_ood["log_p_after_ft"].mean().item(),
-                        "JSD": metrics_ood["jsd"].mean().item(),
-                        "KL": metrics_ood["kl(before||after)"].mean().item()
-                    },
-                ])
-                df = pd.concat([df, new_rows], ignore_index=True)
+    def make_row(kind, m):
+        return {
+            "LR": lr, "Epoch": epoch, "Repeat": repeat, "Index": idx, "Kind": kind,
+            "delta_log_p": m["delta_log_p"].mean().item(),
+            "log_p_before": m["log_p_before_ft"].mean().item(),
+            "log_p_after": m["log_p_after_ft"].mean().item(),
+            "jsd": m["jsd"].mean().item(),
+            "kld(before||after)": m["kld(before||after)"].mean().item()
+        }
 
-                print(
-                   
-                    "Exact >= Random?", metrics_exact["delta_log_p"].mean().item() >= metrics_random["delta_log_p"].mean().item(),
-                    "KL >= Random?", metrics_exact["kl(before||after)"].mean().item() >= metrics_random["kl(before||after)"].mean().item(),
-                    "JSD >= Random?", metrics_exact["jsd"].mean().item() >= metrics_random["jsd"].mean().item(),
-                     "metrics_exact:", metrics_exact,
-                    "metrics_random:", metrics_random,
-                    "metrics_ood:", metrics_ood,  
+    rows = [
+        make_row("exact", metrics_exact),
+        make_row("random", metrics_random),
+        make_row("ood", metrics_ood),
+    ]
 
-                )
+    df = pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
+    df.to_parquet(parquet_path, index=False)
 
-
-
-                df.to_parquet(parquet_file, index=False)
-
-        torch.cuda.empty_cache()
+    torch.cuda.empty_cache()

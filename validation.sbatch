@@ -1,18 +1,18 @@
 #!/bin/bash
 #SBATCH --job-name="[CFE] Validation"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
-#SBATCH --nodelist=dgx-h100-em2,dgx1,shelob,galadriel
+#SBATCH --nodelist=dgx-h100-em2,dgx1,galadriel
 #SBATCH --container-mount-home
 #SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
-#SBATCH --mem=40G
+#SBATCH --mem=60G
 #SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:1
 #SBATCH --time=1-1:00:00
 #SBATCH --nodes=1
-#SBATCH --array=0-9%16  
+#SBATCH --array=0-9%32  
 #SBATCH --partition=p_low
 #SBATCH --requeue
-#SBATCH --reservation=admin_shelob
+
 echo "SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 python3 --version
 df -h

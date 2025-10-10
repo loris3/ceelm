@@ -7,6 +7,8 @@ import os
 import argparse
 from influence_estimation.data_inf import DataInfEstimator
 from influence_estimation.less_inf import LESSEstimator
+from influence_estimation.bm25_inf import BM25Estimator
+
 from datasets import load_dataset
 
 
@@ -72,8 +74,8 @@ def main():
     estimators = [
         LESSEstimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split),
         # LESSEstimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split, normalize=False),
-        DataInfEstimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split)
-    
+        DataInfEstimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split),
+        BM25Estimator(args.model_dir, train_dataset, args.train_dataset, args.train_dataset_split, test_dataset, args.test_dataset, args.test_dataset_split)
     ]
     for estimator in estimators:
         print(estimator.get_config_string)

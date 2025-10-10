@@ -16,6 +16,8 @@ def merge_fragments_with_source_column_parallel(source_dir, target_dir):
             format="parquet",
             min_rows_per_group=25_000,
             max_rows_per_file=5_000_000,
+            existing_data_behavior="overwrite_or_ignore"
+
         )
         print(f"Saved to {target_dir}" )
     else:

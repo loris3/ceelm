@@ -15,7 +15,7 @@ parameters:
     value: train
 
   learning_rate:
-    values: [1e-5]
+    values: [1e-4]
   seed:
     values: [42]
   num_train_epochs:

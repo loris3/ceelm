@@ -1,23 +1,18 @@
 import torch
-import warnings
 import torch.nn.functional as F
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 import numpy as np
-from datasets import load_dataset
-from transformers import DataCollatorForLanguageModeling
-from torch.cuda.amp import autocast
-from tqdm import tqdm
-import copy
-from transformers import DataCollatorForLanguageModeling
-from scipy.spatial import distance
 
-from peft import LoraConfig, get_peft_model, AutoPeftModelForCausalLM
+
+
+
+from peft import AutoPeftModelForCausalLM
 from peft import PeftConfig
 from transformers import logging
 from trl import SFTTrainer,SFTConfig
 from influence_estimation.util import tokenize_dataset
 from torch.nn.utils.rnn import pad_sequence
-from torch.optim import SGD
+
 logging.set_verbosity_error()
 from transformers import SchedulerType
 import torch
@@ -42,7 +37,7 @@ def find_max_batch_size(model, data_collator, device, tokenizer, max_length=4096
                 _ = model(**batch)
             
             torch.cuda.empty_cache()
-            return batch_size  # success
+            return batch_size  
         
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
@@ -56,7 +51,7 @@ def find_max_batch_size(model, data_collator, device, tokenizer, max_length=4096
 
 
 class ValidationEngine():
-    def __init__(self, adapter_path, lr=1e-4, epochs=3, device="cuda"):
+    def __init__(self, adapter_path, lr=1e-5, epochs=1, device="cuda"):
 
         self.gradient_accumulation_steps = None
         self.per_device_bs = None
@@ -90,25 +85,24 @@ class ValidationEngine():
         log_probs = []
         token_distributions = []
 
+        with torch.inference_mode():
+            # tokenize with assistant-only masking
+            tokenized = tokenize_dataset(
+                dataset=examples,
+                tokenizer=self.tokenizer, 
+                max_length=max_length,
+                chat_template_path="./chat_template.jinja",
+                assistant_only_loss=True,
+                text_column="messages",
+                num_proc=1,
+                re_index=False,
+            )
 
-        # Tokenize examples with assistant-only masking
-        tokenized = tokenize_dataset(
-            dataset=examples,
-            tokenizer=self.tokenizer, 
-            max_length=max_length,
-            chat_template_path="./chat_template.jinja",
-            assistant_only_loss=True,
-            text_column="messages",
-            num_proc=1,
-            re_index=False,
-        )
+            for ex in tokenized:
+                batch = [ex]
+                batch = self.data_collator(batch)
+                batch = {k: v.to(self.device) for k, v in batch.items()}
 
-        for ex in tokenized:
-            batch = [ex]
-            batch = self.data_collator(batch)
-            batch = {k: v.to(self.device) for k, v in batch.items()}
-
-            with torch.no_grad():
                 outputs = model(**batch)
 
 
@@ -125,14 +119,14 @@ class ValidationEngine():
                 mask = (labels.squeeze(0) != -100).cpu()
                 token_distributions.append(probs[mask]) 
 
-            del batch, outputs, logits, probs
-            torch.cuda.empty_cache()
+                del batch, outputs, logits, probs
+                torch.cuda.empty_cache()
 
-        return torch.tensor(log_probs, device=self.device),token_distributions
+            return torch.tensor(log_probs, device=self.device),token_distributions
 
 
 
-                    
+                        
 
     def score(self, train_dataset, test_dataset,seed):
         metrics = {}
@@ -147,43 +141,31 @@ class ValidationEngine():
         log_p_after_ft, dist_after = self.get_log_p(model_after_ft, test_dataset)
         del model_after_ft
         
-        metrics["delta_log_p"] = log_p_after_ft - log_p_before_ft
         
+        
+        metrics["delta_log_p"] = log_p_after_ft - log_p_before_ft
         metrics["log_p_before_ft"] = log_p_before_ft
         metrics["log_p_after_ft"] = log_p_after_ft
         
         metrics["jsd"] = []
-        metrics["kl(before||after)"] = []
-
-        for p_before, p_after in zip(dist_before, dist_after):
-            
-            jsd_list = []
-
-            for pb, pa in zip(dist_before, dist_after):
-                m = 0.5 * (pb + pa)
-
-       
-                kl_pb_m = F.kl_div(torch.log(pb + 1e-12), m, reduction='batchmean')
-                kl_pa_m = F.kl_div(torch.log(pa + 1e-12), m, reduction='batchmean')
-                jsd = 0.5 * kl_pb_m + 0.5 * kl_pa_m
-
-                jsd_list.append(jsd.item())
+        metrics["kld(before||after)"] = []
 
 
-            metrics["jsd"].append(np.mean(jsd_list) if jsd_list else 0.0)
+        jsd_list = [0.5 * F.kl_div(torch.log(pb + 1e-12), 0.5*(pb+pa), reduction='batchmean') +
+            0.5 * F.kl_div(torch.log(pa + 1e-12), 0.5*(pb+pa), reduction='batchmean')
+            for pb, pa in zip(dist_before, dist_after)]
+        metrics["jsd"].append(np.mean(jsd_list) if jsd_list else 0.0)
 
 
-            kl_list = [F.kl_div(torch.log(pb + 1e-12), pa, reduction='batchmean').item() for pb, pa in zip(p_before, p_after)]
-            metrics["kl(before||after)"].append(np.mean(kl_list))
+        kl_list = [F.kl_div(torch.log(pa + 1e-12), pb, reduction='batchmean').item() for pb, pa in zip(dist_before, dist_after)]
+        metrics["kld(before||after)"].append(np.mean(kl_list))
+        
         metrics["jsd"] = torch.as_tensor(metrics["jsd"])
-        metrics["kl(before||after)"] = torch.as_tensor(metrics["kl(before||after)"])
+        metrics["kld(before||after)"] = torch.as_tensor(metrics["kld(before||after)"])
         return metrics
         
     def finetune(self, model, train_dataset, seed):
-      
-
-  
-        print("model.config._name_or_path",model.config._name_or_path)
+        # set grad_acc_steps so that only one single parameter update per epoch
         train_len = len(train_dataset)
         if self.gradient_accumulation_steps is None:
             self.per_device_bs = find_max_batch_size(
@@ -193,6 +175,7 @@ class ValidationEngine():
             self.gradient_accumulation_steps = max(1, (train_len // self.per_device_bs)+1)   
             print("gradient_accumulation_steps",self.gradient_accumulation_steps, "per_device_bs", self.per_device_bs, "train_len",train_len,flush=True)
 
+        # the same as in finetune.py but without warmup
         sft_config = SFTConfig(
             per_device_train_batch_size=self.per_device_bs,
             gradient_accumulation_steps=self.gradient_accumulation_steps,
@@ -214,9 +197,6 @@ class ValidationEngine():
 
         )
 
-        # with warnings.catch_warnings():
-        #     warnings.simplefilter("ignore", category=FutureWarning)
-        #     warnings.simplefilter("ignore")
         trainer = SFTTrainer(
             model =model,
             args=sft_config,

@@ -3,6 +3,7 @@
 
 from influence_estimation.data_inf import DataInfEstimator
 from influence_estimation.less_inf import LESSEstimator
+from influence_estimation.bm25_inf import BM25Estimator
 
 from explanations import (
     KRandom,
@@ -39,7 +40,7 @@ explanation_types = [
 
 # explanation_k = [1, 2, 3, 4, 5, 10, 15, 20, 25]
 explanation_k = [1, 5, 10, 25]
-explanation_seed = [42, 10, 3, 9, 6]
+explanation_seed = [42,]# 10, 3, 9, 6]
 
 
 linear_coders = [MSECoderProjUSimpSparse, MSECoderProjUSimp, KLTCoder, MSECoder, MSECoderNNLSL2, MSECoderProjUSimpSparseSoftThresh,
@@ -68,9 +69,13 @@ def load_data_and_estimators():
     ]
     for model in MODELS:
         estimators.extend([
-                        DataInfEstimator(model,
-                            train_dataset, train_dataset_name, train_dataset_split,
-                            test_dataset, test_dataset_name, test_dataset_split, eval_mode=True),
+                        # DataInfEstimator(model,
+                        #     train_dataset, train_dataset_name, train_dataset_split,
+                        #     test_dataset, test_dataset_name, test_dataset_split, eval_mode=True),
+                        # BM25Estimator(model,
+                        #     train_dataset, train_dataset_name, train_dataset_split,
+                        #     test_dataset, test_dataset_name, test_dataset_split, eval_mode=True),
+
             LESSEstimator(model,
                         train_dataset, train_dataset_name, train_dataset_split,
                         test_dataset, test_dataset_name, test_dataset_split, eval_mode=True),
