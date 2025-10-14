@@ -40,14 +40,11 @@ class DataInfEstimator(BaseEstimator):
         
         if self.fast_implementation:
             logger.info(f"Computing HVPs...")
-            self.influence_engine.compute_hvps(self.tokenized_train_dataset, self.train_dataset_name, self.train_dataset_split, self.gradient_out_dir)
+            self.influence_engine.compute_hvps(self.tokenized_train_dataset, self.train_dataset_name, self.train_dataset_split, self.test_dataset_name, self.test_dataset_split, self.gradient_out_dir)
             logger.info(f"Computing IF...")
             self.influence_engine.compute_IF(self.tokenized_train_dataset, self.train_dataset_name, self.train_dataset_split)
         else:
-            logger.info(f"Computing HVPs (slow)...")
-            self.influence_engine.compute_hvps_slow()
-            logger.info(f"Computing IF (slow)...")
-            self.influence_engine.compute_IF_slow(self.tokenized_train_dataset, self.train_dataset_name, self.train_dataset_split)
+            raise NotImplementedError
         
         
         self.influence_estimate = self.influence_engine.IF_dict["proposed"]
