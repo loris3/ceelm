@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="[CFE] Scoring"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
-#SBATCH --nodelist=dgx-h100-em2,dgx1,shelob,galadriel
+#SBATCH --nodelist=dgx-h100-em2,shelob,galadriel
 #SBATCH --container-mount-home
 #SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
 #SBATCH --mem=40G

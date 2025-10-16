@@ -95,7 +95,7 @@ class IFEngineGeneration(object):
             sum_sq = torch.zeros(n_weights, dtype=torch.float64)
             for i in tqdm(range(0, n_train, batch_size), desc="Compute lambda_const"):
                 batch_ids = list(range(i, min(i + batch_size, n_train)))
-                batch_grads_list = self.get_gradient(tokenized_train_dataset, train_dataset_name, train_dataset_split, batch_ids)
+                batch_grads_list = self.get_gradient(train_dataset_name, train_dataset_split, batch_ids)
                 for grads_dict in batch_grads_list:
                     per_weight_means = []
                     for w_idx, w in enumerate(weight_names):
@@ -140,7 +140,7 @@ class IFEngineGeneration(object):
 
                 for i in tqdm(range(0, n_train, batch_size),desc="Inner train data loop"):
                     batch_ids = list(range(i, min(i + batch_size, n_train)))
-                    batch_grads_list = self.get_gradient(tokenized_train_dataset, train_dataset_name, train_dataset_split, batch_ids)
+                    batch_grads_list = self.get_gradient(train_dataset_name, train_dataset_split, batch_ids)
 
    
 
@@ -208,7 +208,7 @@ class IFEngineGeneration(object):
         for i in tqdm(range(0, n_train, batch_size), desc="Train batches"):
             batch_ids = tr_ids[i:i + batch_size]
             batch_grads_list = self.get_gradient(
-                tokenized_train_dataset, train_dataset_name, train_dataset_split, batch_ids
+                train_dataset_name, train_dataset_split, batch_ids
             )
             batch_grads = torch.stack([
                 torch.cat([grad[w].view(-1) for w in weight_names]).float()

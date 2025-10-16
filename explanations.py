@@ -15,6 +15,10 @@ class Explanation(ABC):
     @abstractmethod
     def description(self):
         pass
+    @property 
+    @abstractmethod
+    def costs(self):
+        pass
 class TopKMostHelpful(Explanation):
     def __init__(self, document_idx, estimator, k=10):
         super().__init__(document_idx,estimator)
@@ -25,6 +29,10 @@ class TopKMostHelpful(Explanation):
     @property
     def description(self):
         return f"Top-{self.k} most helpful (most negative scores)"
+    @property 
+    def costs(self):
+        return self.influence_estimate
+
 
 class Self(Explanation):
     def __init__(self, document_idx):
@@ -37,6 +45,9 @@ class Self(Explanation):
     @property
     def description(self):
         return f"The test instance (as a sanity check)"
+    @property
+    def costs(self):
+        return [0]
     
 class KRandom(Explanation):
     def __init__(self, document_idx, estimator, k=10, seed=42):
@@ -49,6 +60,9 @@ class KRandom(Explanation):
     @property
     def description(self):
         return f"{self.k} random examples with seed {self.seed}"
+    @property
+    def costs(self):
+        return self.influence_estimate.sample(n=self.k, random_state=self.seed).values.tolist()
 class TopKMostHarmful(Explanation):
     def __init__(self,  document_idx, estimator, k=10):
         super().__init__( document_idx, estimator)
@@ -58,7 +72,11 @@ class TopKMostHarmful(Explanation):
         return self.influence_estimate.nlargest(self.k).index.tolist()
     @property
     def description(self):
-        return f"Top-{self.k} most harmful (most positive scores)"    
+        return f"Top-{self.k} most harmful (most positive scores)"   
+    @property 
+    def costs(self):
+        return -self.influence_estimate
+
 class TopKLeastInfluential(Explanation):
     def __init__(self,  document_idx, estimator, k=10):
         super().__init__( document_idx, estimator)
@@ -69,6 +87,9 @@ class TopKLeastInfluential(Explanation):
     @property
     def description(self):
         return f"Top-{self.k} least influential (scores closest to zero)"
+    @property 
+    def costs(self):
+        return -self.influence_estimate
 class TopKMostInfluential(Explanation):
     def __init__(self,  document_idx, estimator, k=10):
         super().__init__( document_idx, estimator)
@@ -79,3 +100,6 @@ class TopKMostInfluential(Explanation):
     @property
     def description(self):
         return f"Top-{self.k} most influential (scores with largest absolute value)"
+    @property 
+    def costs(self):
+        return self.influence_estimate.abs()

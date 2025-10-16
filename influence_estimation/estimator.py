@@ -111,7 +111,7 @@ class BaseEstimator(ABC):
     def get_config_string(self):
         pass
 
-      
+   
             
     def load_gradients(self, dataset, dataset_name, dataset_split, max_workers=32):
 
@@ -221,7 +221,7 @@ class BaseEstimator(ABC):
     
     
     
-    def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
+    def get_gradient(self, dataset_name, dataset_split, train_instance_idx):
 
         grad_path = os.path.join(
             self.gradient_cache_dir,

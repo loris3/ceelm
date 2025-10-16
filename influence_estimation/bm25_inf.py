@@ -12,7 +12,8 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 logger = logging.getLogger(__name__)
-
+from functools import partial
+import torch
 N_PROC=8
 
 
@@ -24,7 +25,10 @@ class BM25Estimator(BaseEstimator):
         super().__init__(model_path, train_dataset, train_dataset_name, train_dataset_split,
                          test_dataset, test_dataset_name, test_dataset_split,
                          device=device, param_list=[k1, b], eval_mode=eval_mode)
-        
+        self.gradient_cache_dir = os.path.join("/tmp/cache/gradients/full", "DataInfEstimator","8192-True", os.path.basename(self.model_path))
+        self.gradient_out_dir = os.path.join("cache/gradients/full", "DataInfEstimator","8192-True", os.path.basename(self.model_path))
+        if eval_mode:
+            self.gradient_cache_dir = self.gradient_out_dir
         self.k1 = k1
         self.b = b
         self.num_workers = num_workers or N_PROC
@@ -156,3 +160,29 @@ class BM25Estimator(BaseEstimator):
         self.influence_estimate = df_scores
         self.save()
         logger.info("BM25 influence estimate computed and saved.")
+
+    def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
+        grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
+
+        return  torch.cat([g.flatten() for g in list(grads_dict.values())[0].values()])
+
+    def get_gradient_dict(self, dataset, dataset_name, dataset_split, train_instance_idx):
+        if isinstance(train_instance_idx, int):
+            grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
+            return next(iter(grads_dict.values()))
+
+        elif isinstance(train_instance_idx, (list, tuple)):
+            
+            def fetch_grad(idx, get_grad_fn, dataset, dataset_name, dataset_split):
+                        grads_dict = get_grad_fn(dataset, dataset_name, dataset_split, idx)
+                        return next(iter(grads_dict.values()))
+
+          
+            fetch_grad_partial = partial(fetch_grad, get_grad_fn=super().get_gradient,
+                                        dataset=dataset, dataset_name=dataset_name, dataset_split=dataset_split)
+
+            with ThreadPoolExecutor() as executor:
+                return list(executor.map(fetch_grad_partial, train_instance_idx))
+
+        else:
+            raise TypeError("train_instance_idx must be an int or a list/tuple of ints")

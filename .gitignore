@@ -39,3 +39,4 @@ results.tar.gz
 *.tex
 
 output.png
+partial/*

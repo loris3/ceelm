@@ -88,14 +88,14 @@ class DataInfEstimator(BaseEstimator):
 
 
 
-    def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
-        grads_dict = super().get_gradient(dataset, dataset_name, dataset_split, train_instance_idx)
+    def get_gradient(self,  dataset_name, dataset_split, train_instance_idx):
+        grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
 
         return  torch.cat([g.flatten() for g in list(grads_dict.values())[0].values()])
 
     def get_gradient_dict(self, dataset, dataset_name, dataset_split, train_instance_idx):
         if isinstance(train_instance_idx, int):
-            grads_dict = super().get_gradient(dataset, dataset_name, dataset_split, train_instance_idx)
+            grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
             return next(iter(grads_dict.values()))
 
         elif isinstance(train_instance_idx, (list, tuple)):
@@ -106,7 +106,7 @@ class DataInfEstimator(BaseEstimator):
 
           
             fetch_grad_partial = partial(fetch_grad, get_grad_fn=super().get_gradient,
-                                        dataset=dataset, dataset_name=dataset_name, dataset_split=dataset_split)
+                                         dataset_name=dataset_name, dataset_split=dataset_split)
 
             with ThreadPoolExecutor() as executor:
                 return list(executor.map(fetch_grad_partial, train_instance_idx))

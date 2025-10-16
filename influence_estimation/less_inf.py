@@ -93,7 +93,6 @@ class LESSEstimator(BaseEstimator):
 
 
             train_grads = self.get_gradient(
-                self.train_dataset,
                 self.train_dataset_name,
                 self.train_dataset_split,
                 list(range(start, end))  
@@ -188,20 +187,19 @@ class LESSEstimator(BaseEstimator):
 
  
 
-    def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
+    def get_gradient(self, dataset_name, dataset_split, train_instance_idx):
         if isinstance(train_instance_idx, int):
-            grads_dict = super().get_gradient(dataset, dataset_name, dataset_split, train_instance_idx)
+            grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
             return list(grads_dict.values())[0].flatten()
 
         elif isinstance(train_instance_idx, (list, tuple)):
             
-            def fetch_grad(idx, get_grad_fn, dataset, dataset_name, dataset_split):
-                grads_dict = get_grad_fn(dataset, dataset_name, dataset_split, idx)
+            def fetch_grad(idx, get_grad_fn, dataset_name, dataset_split):
+                grads_dict = get_grad_fn(dataset_name, dataset_split, idx)
                 return list(grads_dict.values())[0].flatten()
 
           
-            fetch_grad_partial = partial(fetch_grad, get_grad_fn=super().get_gradient,
-                                        dataset=dataset, dataset_name=dataset_name, dataset_split=dataset_split)
+            fetch_grad_partial = partial(fetch_grad, get_grad_fn=super().get_gradient, dataset_name=dataset_name, dataset_split=dataset_split)
 
             with ThreadPoolExecutor() as executor:
                 return list(executor.map(fetch_grad_partial, train_instance_idx))
