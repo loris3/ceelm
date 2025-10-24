@@ -3,7 +3,7 @@
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
 #SBATCH --nodelist=dgx-h100-em2,shelob,galadriel
 #SBATCH --container-mount-home
-#SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
+#SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --mem=40G
 #SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:1

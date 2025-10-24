@@ -342,7 +342,7 @@ class MSECoderProjUSimp(BaseMSECoder):
             self.t.data.copy_(t_opt.to(self.t.device))
 class MSECoderProjUSimpSparseSoftThresh(BaseMSECoder):
     def __init__(self, A, test_grad, device=None, 
-                 metadata_only=False, use_wandb=False, lambda_reg=0.2, project="linear_coder", estimator_config=""):
+                 metadata_only=False, use_wandb=False, lambda_reg=0.5, project="linear_coder", estimator_config=""):
         self.lambda_reg = lambda_reg
         super().__init__(A, test_grad, device,
                          metadata_only=metadata_only,
@@ -406,7 +406,7 @@ def GSHP_tensor(w, y, lam, k):
 
 class MSECoderProjUSimpSparse(BaseMSECoder):
     def __init__(self, A, test_grad, device=None, 
-                 reg_lambda=0.1, 
+                 reg_lambda=0.5, 
                  metadata_only=False, use_wandb=False, project="linear_coder", estimator_config=""):
         self.reg_lambda = reg_lambda
    

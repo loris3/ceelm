@@ -4,12 +4,10 @@
 #SBATCH --nodelist=dgx-h100-em2,dgx1,shelob,galadriel
 #SBATCH --container-mount-home 
 #SBATCH --mem=256G
-#SBATCH --cpus-per-task=8  
-#SBATCH --gres=gpu:0
+#SBATCH --cpus-per-task=64  
 #SBATCH --time=0-00:59:00
-#SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
+#SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --nodes=1
-
 python3 --version
 
 df -h

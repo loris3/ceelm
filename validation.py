@@ -12,10 +12,7 @@ from load_experiment_data import (
     train_dataset_split,
     test_dataset_split,
     load_data_and_estimators,
-    explanation_types,
-    linear_coders,
-    explanation_k,
-    
+    explanation_types,   
 )
 from explanations import KRandom, Self
 
@@ -26,6 +23,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--explanation_type", type=str, required=True)
     parser.add_argument("--seed", type=int, required=False)
+    parser.add_argument("--m", type=int, required=False)
+    parser.add_argument("--k", type=int, required=False)
+    parser.add_argument("--lambda_", type=float, required=False)
     args = parser.parse_args()
 
     torch.manual_seed(42)
@@ -35,7 +35,11 @@ if __name__ == "__main__":
     print("Total estimators:", len(estimators), flush=True)
 
     for estimator in estimators:
-        print(f"Processing estimator: {os.path.basename(estimator.model_path)}", flush=True)
+        print(f"Processing estimator {estimator.get_config_string()} for {os.path.basename(estimator.model_path)}", flush=True)
+        print(args)
+        if ("BM25" in estimator.get_config_string()) and (("Helpful" in args.explanation_type) or ("Harmful" in args.explanation_type) ):
+            print("skipping BM25",args)
+            continue
 
         # Create engine once per estimator
         engine = ValidationEngine(estimator.model_path)
@@ -48,23 +52,26 @@ if __name__ == "__main__":
             train_dataset_split,
             test_dataset_name,
             test_dataset_split,
+            
         )
 
         explanations = []
 
         if args.explanation_type == "KRandom":
-            for k in explanation_k:
-                for idx in range(len(test_dataset)):
-                    explanations.append(KRandom(idx, estimator, k=k, seed=args.seed))
+        
+            for idx in range(len(test_dataset)):
+                explanations.append(KRandom(idx, estimator,train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split, k=args.k, seed=args.seed))
         elif args.explanation_type == "Self":
             for idx in range(len(test_dataset)):
                 explanations.append(Self(idx))
         else:
             for base in explanation_types:
                 if args.explanation_type == base.__name__:
-                    for k in explanation_k:
-                        for idx in range(len(test_dataset)):
-                            explanations.append(base(idx, estimator, k=k))
+                    for idx in range(len(test_dataset)):
+                            if "Facility" in args.explanation_type:
+                                explanations.append(base(idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split,k=args.k, m=args.m, lambda_=args.lambda_))
+                            else:
+                                explanations.append(base(idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split, k=args.k))
 
         assert len(explanations) > 0, "Provide a valid class name as arg"
 

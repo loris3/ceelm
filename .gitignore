@@ -40,3 +40,7 @@ results.tar.gz
 
 output.png
 partial/*
+*.parquet
+tables/olmes-own.tex
+validation.txt
+scoring.txt

@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --gres=gpu:4
 #SBATCH --time=1-16:00:00
-#SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
+#SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --nodes=1  
  
 

@@ -8,7 +8,7 @@
 #SBATCH --nodelist=dgx1,dgx-h100-em2
 #SBATCH --gres=gpu:0
 #SBATCH --time=0-1:00:00
-#SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
+#SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --nodes=1
 
 

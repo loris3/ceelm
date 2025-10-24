@@ -17,9 +17,13 @@
 #SBATCH --output=jupyter.out
 #SBATCH --error=jupyter.err
 # #SBATCH --partition=p_datamining
+#SBATCH --container-writable
+export HF_HOME="/mnt/nlp-data/home/users/loriss21cs/.hf"
 export HF_HUB_ENABLE_HF_TRANSFER=1
 export WANDB_API_KEY=cba4442ed0417ba698aa1b18b17ee238f46945af
 ulimit -n 65535
+
+pip install ipykernel==6.30.1
 
 python3 --version
 

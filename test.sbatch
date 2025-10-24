@@ -2,17 +2,17 @@
 #SBATCH --job-name="[CFE] Finetuning Olmo2-1B math"
 
 #SBATCH --container-image=ghcr.io#ghcr.io#loris3/cfe:latest 
-# #SBATCH --container-image=/srv/home/users/loriss21cs/cfe/cfe.sqsh
+# #SBATCH --container-image=/mnt/nlp-data/home/users/loriss21cs/cfe/cfe.sqsh
 
 
 #SBATCH --nodelist=dgx-h100-em2
-# # SBATCH --container-save=/srv/home/users/loriss21cs/cfe/cfe.sqsh
+# # SBATCH --container-save=/mnt/nlp-data/home/users/loriss21cs/cfe/cfe.sqsh
 #SBATCH --container-mount-home 
 #SBATCH --mem=128G
 #SBATCH --cpus-per-task=32  
 #SBATCH --gres=gpu:2
 #SBATCH --time=1-10:00:00
-#SBATCH --container-workdir=/srv/home/users/loriss21cs/cfe
+#SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --nodes=1
 
 export HF_HUB_ENABLE_HF_TRANSFER=1

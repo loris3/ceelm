@@ -39,6 +39,6 @@ def chat_loop(tokenizer, model):
         print("Model:", response[len(prompt):].strip(), "\n")
 
 if __name__ == "__main__":
-    model_dir = "/srv/home/users/loriss21cs/cfe/out/OLMo-2-1124-7B-math-lora-gas8-bs4-mezo-v_proj-2560_largest_grad-5steps-seed0"
+    model_dir = "/mnt/nlp-data/home/users/loriss21cs/cfe/out/OLMo-2-1124-7B-math-lora-gas8-bs4-mezo-v_proj-2560_largest_grad-5steps-seed0"
     tokenizer, model = load_model(model_dir)
     chat_loop(tokenizer, model)

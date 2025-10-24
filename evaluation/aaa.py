@@ -28,8 +28,8 @@ df = pd.DataFrame(indices, columns=["interation", "subset", "indices"])
 df
 # base_model_path = "distilbert/distilgpt2"
 base_model_path = "allenai/OLMo-2-0425-1B"
-# adapter_path = "/srv/home/users/loriss21cs/cfe/models/distilgpt2_tulu-v2-sft-mixture"
-adapter_path = "/srv/home/users/loriss21cs/cfe/models/OLMo-2-0425-1B_tulu-v2-sft-mixture"
+# adapter_path = "/mnt/nlp-data/home/users/loriss21cs/cfe/models/distilgpt2_tulu-v2-sft-mixture"
+adapter_path = "/mnt/nlp-data/home/users/loriss21cs/cfe/models/OLMo-2-0425-1B_tulu-v2-sft-mixture"
 
 train_dataset = load_dataset("allenai/tulu-v2-sft-mixture", split="train")#.shuffle(seed=0).select(range(20))
 

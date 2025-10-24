@@ -192,7 +192,7 @@ class LESSEstimator(BaseEstimator):
             grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
             return list(grads_dict.values())[0].flatten()
 
-        elif isinstance(train_instance_idx, (list, tuple)):
+        else:
             
             def fetch_grad(idx, get_grad_fn, dataset_name, dataset_split):
                 grads_dict = get_grad_fn(dataset_name, dataset_split, idx)
@@ -204,8 +204,7 @@ class LESSEstimator(BaseEstimator):
             with ThreadPoolExecutor() as executor:
                 return list(executor.map(fetch_grad_partial, train_instance_idx))
 
-        else:
-            raise TypeError("train_instance_idx must be an int or a list/tuple of ints")
+       
 
 
 def batch_map(batch, rank, model, gradient_type, tokenizer,  proj_dim, adam_optimizer_state, gradient_cache_dir, gradient_out_dir, dataset_name, dataset_split_name):

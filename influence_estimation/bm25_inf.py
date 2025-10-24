@@ -160,18 +160,28 @@ class BM25Estimator(BaseEstimator):
         self.influence_estimate = df_scores
         self.save()
         logger.info("BM25 influence estimate computed and saved.")
+    def get_gradient(self,  dataset_name, dataset_split, train_instance_idx):
+        if isinstance(train_instance_idx, int):
+            grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
 
-    def get_gradient(self, dataset, dataset_name, dataset_split, train_instance_idx):
-        grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
+            return  torch.cat([g.flatten() for g in list(grads_dict.values())[0].values()])
+        else:
+            def fetch_grad(idx, get_grad_fn, dataset_name, dataset_split):            
+                grads_dict = get_grad_fn(dataset_name, dataset_split, idx)
+                return  torch.cat([g.to_dense().flatten() for g in list(grads_dict.values())[0].values()])
 
-        return  torch.cat([g.flatten() for g in list(grads_dict.values())[0].values()])
+          
+            fetch_grad_partial = partial(fetch_grad, get_grad_fn=super().get_gradient, dataset_name=dataset_name, dataset_split=dataset_split)
+
+            with ThreadPoolExecutor() as executor:
+                return list(executor.map(fetch_grad_partial, train_instance_idx))
 
     def get_gradient_dict(self, dataset, dataset_name, dataset_split, train_instance_idx):
         if isinstance(train_instance_idx, int):
             grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
             return next(iter(grads_dict.values()))
 
-        elif isinstance(train_instance_idx, (list, tuple)):
+        else:
             
             def fetch_grad(idx, get_grad_fn, dataset, dataset_name, dataset_split):
                         grads_dict = get_grad_fn(dataset, dataset_name, dataset_split, idx)
@@ -184,5 +194,4 @@ class BM25Estimator(BaseEstimator):
             with ThreadPoolExecutor() as executor:
                 return list(executor.map(fetch_grad_partial, train_instance_idx))
 
-        else:
-            raise TypeError("train_instance_idx must be an int or a list/tuple of ints")
+     
