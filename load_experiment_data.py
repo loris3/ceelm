@@ -14,7 +14,12 @@ from explanations import (
     FacilityLocationMostHelpful,
     FacilityLocationMostHarmful,
     FacilityLocationMostInfluential,
-    FacilityLocationLeastInfluential
+    FacilityLocationLeastInfluential,
+    
+    DIVINEMostHelpful,
+    DIVINEMostHarmful,
+    DIVINEMostInfluential,
+    DIVINELeastInfluential
 )
 from linear_coders import MSECoderProjUSimp, KLTCoder, MSECoder, MSECoderNNLSL2, CosineCoder, MSECoderLemon, MSECoderElasticNet,MSECoderProjUSimpSparse,MSECoderProjUSimpSparseSoftThresh
 
@@ -43,7 +48,11 @@ explanation_types = [
     FacilityLocationMostHarmful,
     FacilityLocationMostHelpful,
     FacilityLocationMostInfluential,
-    FacilityLocationLeastInfluential
+    FacilityLocationLeastInfluential,
+    DIVINEMostHelpful,
+    DIVINEMostHarmful,
+    DIVINEMostInfluential,
+    DIVINELeastInfluential
 ]
 
 # explanation_k = [1, 2, 3, 4, 5, 10, 15, 20, 25]

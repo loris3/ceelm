@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Validation"
+#SBATCH --job-name="[CFE] Scoring"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
-#SBATCH --nodelist=dgx-h100-em2,galadriel,shelob,vader
+#SBATCH --nodelist=dgx-h100-em2,shelob,galadriel,vader
 #SBATCH --container-mount-home
 #SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --mem=60G
@@ -9,11 +9,10 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=1-1:00:00
 #SBATCH --nodes=1
-#SBATCH --array=0-11%10  
+#SBATCH --array=0-79%100  
 #SBATCH --partition=p_low
 #SBATCH --requeue
-
-
+#SBATCH --dependency=afterok:
 echo "SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 python3 --version
 df -h
@@ -23,12 +22,15 @@ export HF_TRANSFER=1
 export HF_HOME=/tmp/hf_cache
 export HF_DATASETS_CACHE=/tmp/hf_cache/datasets
 export HF_MODULES_CACHE=/tmp/hf_cache/modules
-export HF_TOKEN=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
+export HF_TOKEN=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
 
-SEEDS=(42 10 3 9 6)
-OTHER_TYPES=("FacilityLocationLeastInfluential" "FacilityLocationMostInfluential" "FacilityLocationMostHelpful" "FacilityLocationMostHarmful" "Self" "TopKMostInfluential" "TopKLeastInfluential" "TopKMostHelpful" "TopKMostHarmful")
+SEEDS=()
+# SEEDS=(42 10 3 9 6)
+OTHER_TYPES=("FacilityLocationLeastInfluential" "FacilityLocationMostInfluential" "FacilityLocationMostHelpful" "FacilityLocationMostHarmful")
+
+# OTHER_TYPES=("FacilityLocationLeastInfluential" "FacilityLocationMostInfluential" "FacilityLocationMostHelpful" "FacilityLocationMostHarmful" "Self" "TopKMostInfluential" "TopKLeastInfluential" "TopKMostHelpful" "TopKMostHarmful")
 K_VALUES=(1 5 10 25)
-LAMBDA_VALUES=(0.0 0.5 1)
+LAMBDA_VALUES=(0.0 0.5 1.0 2.0 3.0)
 M_VALUES=(100)
 
 NUM_SEEDS=${#SEEDS[@]}
@@ -54,7 +56,7 @@ if [ $SLURM_ARRAY_TASK_ID -lt $TOTAL_KRANDOM ]; then
     SEED=${SEEDS[$SEED_IDX]}
     K=${K_VALUES[$K_IDX]}
     echo "Running KRandom with seed=${SEED}, k=${K}"
-    python3 validation.py --explanation_type=KRandom --seed=${SEED} --k=${K}
+    python3 score.py --explanation_type=KRandom --seed=${SEED} --k=${K}
 
 elif [ $SLURM_ARRAY_TASK_ID -lt $(( TOTAL_KRANDOM + TOTAL_FACILITY )) ]; then
     # FacilityLocation* types
@@ -72,7 +74,7 @@ elif [ $SLURM_ARRAY_TASK_ID -lt $(( TOTAL_KRANDOM + TOTAL_FACILITY )) ]; then
     M=${M_VALUES[$M_IDX]}
 
     echo "Running Facility scoring with explanation_type=${EXPLANATION_TYPE}, k=${K}, lambda=${LAMBDA}, m=${M}"
-    python3 validation.py --explanation_type=${EXPLANATION_TYPE} --k=${K} --lambda_=${LAMBDA} --m=${M}
+    python3 score.py --explanation_type=${EXPLANATION_TYPE} --k=${K} --lambda_=${LAMBDA} --m=${M}
 
 else
     # Non-Facility types
@@ -87,5 +89,5 @@ else
     LAMBDA=${LAMBDA_VALUES[$LAMBDA_IDX]}
 
     echo "Running scoring with explanation_type=${EXPLANATION_TYPE}, k=${K}, lambda=${LAMBDA}"
-    python3 validation.py --explanation_type=${EXPLANATION_TYPE} --k=${K} --lambda_=${LAMBDA}
+    python3 score.py --explanation_type=${EXPLANATION_TYPE} --k=${K} --lambda_=${LAMBDA}
 fi

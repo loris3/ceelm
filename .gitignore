@@ -44,3 +44,5 @@ partial/*
 tables/olmes-own.tex
 validation.txt
 scoring.txt
+merge_fail_list_scoring.txt
+figures/*

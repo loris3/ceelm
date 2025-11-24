@@ -9,10 +9,9 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=1-1:00:00
 #SBATCH --nodes=1
-#SBATCH --array=0-127%100  
+#SBATCH --array=0-16%100  
 #SBATCH --partition=p_low
 #SBATCH --requeue
-
 echo "SLURM_ARRAY_TASK_ID=$SLURM_ARRAY_TASK_ID"
 python3 --version
 df -h
@@ -22,12 +21,15 @@ export HF_TRANSFER=1
 export HF_HOME=/tmp/hf_cache
 export HF_DATASETS_CACHE=/tmp/hf_cache/datasets
 export HF_MODULES_CACHE=/tmp/hf_cache/modules
-export HF_TOKEN=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
+export HF_TOKEN=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
 
-SEEDS=(42 10 3 9 6)
-OTHER_TYPES=("FacilityLocationLeastInfluential" "FacilityLocationMostInfluential" "FacilityLocationMostHelpful" "FacilityLocationMostHarmful" "Self" "TopKMostInfluential" "TopKLeastInfluential" "TopKMostHelpful" "TopKMostHarmful")
+SEEDS=()
+# SEEDS=(42 10 3 9 6)
+OTHER_TYPES=("DIVINELeastInfluential" "DIVINEMostInfluential" "DIVINEMostHelpful" "DIVINEMostHarmful")
+
+# OTHER_TYPES=("FacilityLocationLeastInfluential" "FacilityLocationMostInfluential" "FacilityLocationMostHelpful" "FacilityLocationMostHarmful" "Self" "TopKMostInfluential" "TopKLeastInfluential" "TopKMostHelpful" "TopKMostHarmful")
 K_VALUES=(1 5 10 25)
-LAMBDA_VALUES=(0.0 0.5 1)
+LAMBDA_VALUES=(0.0) # 0.25 0.5 0.75 1.0)
 M_VALUES=(100)
 
 NUM_SEEDS=${#SEEDS[@]}
@@ -75,16 +77,20 @@ elif [ $SLURM_ARRAY_TASK_ID -lt $(( TOTAL_KRANDOM + TOTAL_FACILITY )) ]; then
 
 else
     # Non-Facility types
-    ARRAY_IDX=$(( SLURM_ARRAY_TASK_ID - TOTAL_KRANDOM - TOTAL_FACILITY ))
-    TYPE_IDX=$(( ARRAY_IDX / (NUM_K * NUM_LAMBDA) + NUM_FACILITY_TYPES ))
-    REMAINDER=$(( ARRAY_IDX % (NUM_K * NUM_LAMBDA) ))
-    K_IDX=$(( REMAINDER / NUM_LAMBDA ))
-    LAMBDA_IDX=$(( REMAINDER % NUM_LAMBDA ))
+    if [ $ARRAY_IDX -lt $(( (NUM_TYPES - NUM_FACILITY_TYPES) * NUM_K * NUM_LAMBDA )) ]; then
+        ARRAY_IDX=$(( SLURM_ARRAY_TASK_ID - TOTAL_KRANDOM - TOTAL_FACILITY ))
+        TYPE_IDX=$(( ARRAY_IDX / (NUM_K * NUM_LAMBDA) + NUM_FACILITY_TYPES ))
+        REMAINDER=$(( ARRAY_IDX % (NUM_K * NUM_LAMBDA) ))
+        K_IDX=$(( REMAINDER / NUM_LAMBDA ))
+        LAMBDA_IDX=$(( REMAINDER % NUM_LAMBDA ))
 
-    EXPLANATION_TYPE=${OTHER_TYPES[$TYPE_IDX]}
-    K=${K_VALUES[$K_IDX]}
-    LAMBDA=${LAMBDA_VALUES[$LAMBDA_IDX]}
+        EXPLANATION_TYPE=${OTHER_TYPES[$TYPE_IDX]}
+        K=${K_VALUES[$K_IDX]}
+        LAMBDA=${LAMBDA_VALUES[$LAMBDA_IDX]}
 
-    echo "Running scoring with explanation_type=${EXPLANATION_TYPE}, k=${K}, lambda=${LAMBDA}"
-    python3 score.py --explanation_type=${EXPLANATION_TYPE} --k=${K} --lambda_=${LAMBDA}
+        echo "Running scoring with explanation_type=${EXPLANATION_TYPE}, k=${K}, lambda=${LAMBDA}"
+        python3 score.py --explanation_type=${EXPLANATION_TYPE} --k=${K} --lambda_=${LAMBDA}
+    else 
+        python3 score.py --explanation_type=Self
+    fi
 fi

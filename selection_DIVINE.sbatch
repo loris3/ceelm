@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Selection"
+#SBATCH --job-name="[CFE] Selection DIVINE"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
 #SBATCH --nodelist=dgx-h100-em2,shelob,galadriel,vader
 #SBATCH --container-mount-home
@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=0-8:00:00
 #SBATCH --nodes=1
-#SBATCH --array=0-16%90    
+#SBATCH --array=0-15%90    
 #SBATCH --partition=p_low
 #SBATCH --requeue
 
@@ -23,31 +23,23 @@ export HF_DATASETS_CACHE=/tmp/hf_cache/datasets
 export HF_MODULES_CACHE=/tmp/hf_cache/modules
 export HF_TOKEN=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
 
-
 OTHER_TYPES=("DIVINELeastInfluential" "DIVINEMostInfluential" "DIVINEMostHelpful" "DIVINEMostHarmful")
 K_VALUES=(10 5 1 25)
-LAMBDA_VALUES=(0.0) # 0.25 0.5 0.75 1.0)
 M_VALUES=(100)
-
 
 NUM_TYPES=${#OTHER_TYPES[@]}
 NUM_K=${#K_VALUES[@]}
-NUM_LAMBDA=${#LAMBDA_VALUES[@]}
 NUM_M=${#M_VALUES[@]}
 
-
-TYPE_IDX=$(( SLURM_ARRAY_TASK_ID / (NUM_K * NUM_LAMBDA * NUM_M) ))
-REMAINDER=$(( SLURM_ARRAY_TASK_ID % (NUM_K * NUM_LAMBDA * NUM_M) ))
-K_IDX=$(( REMAINDER / (NUM_LAMBDA * NUM_M) ))
-REMAINDER2=$(( REMAINDER % (NUM_LAMBDA * NUM_M) ))
-LAMBDA_IDX=$(( REMAINDER2 / NUM_M ))
-M_IDX=$(( REMAINDER2 % NUM_M ))
+# Compute indices for this array task
+TYPE_IDX=$(( SLURM_ARRAY_TASK_ID / (NUM_K * NUM_M) ))
+REMAINDER=$(( SLURM_ARRAY_TASK_ID % (NUM_K * NUM_M) ))
+K_IDX=$(( REMAINDER / NUM_M ))
+M_IDX=$(( REMAINDER % NUM_M ))
 
 EXPLANATION_TYPE=${OTHER_TYPES[$TYPE_IDX]}
 K=${K_VALUES[$K_IDX]}
-LAMBDA=${LAMBDA_VALUES[$LAMBDA_IDX]}
 M=${M_VALUES[$M_IDX]}
 
-echo "Running selection with explanation_type=${EXPLANATION_TYPE}, k=${K}, lambda=${LAMBDA}, m=${M}"
-
-python3 selection.py --explanation_type=${EXPLANATION_TYPE} --k=${K} --m=${M} --lambda_=${LAMBDA}
+echo "Running selection with explanation_type=${EXPLANATION_TYPE}, k=${K}, m=${M}"
+python3 selection.py --explanation_type=${EXPLANATION_TYPE} --k=${K} --m=${M}
