@@ -45,6 +45,12 @@ class CustomTrainingArguments(TrainingArguments):
     save_steps: int = field(default=500)   
 from datasets import load_from_disk
 
+def load_tokenizer(tokenizer_path, chat_template_path="./chat_template.jinja"):
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        tokenizer.chat_template = open(chat_template_path).read()
+        if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+        return tokenizer    
 
 
 

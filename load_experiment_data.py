@@ -19,7 +19,8 @@ from explanations import (
     DIVINEMostHelpful,
     DIVINEMostHarmful,
     DIVINEMostInfluential,
-    DIVINELeastInfluential
+    DIVINELeastInfluential,
+    AIDE
 )
 from linear_coders import MSECoderProjUSimp, KLTCoder, MSECoder, MSECoderNNLSL2, CosineCoder, MSECoderLemon, MSECoderElasticNet,MSECoderProjUSimpSparse,MSECoderProjUSimpSparseSoftThresh
 
@@ -52,7 +53,8 @@ explanation_types = [
     DIVINEMostHelpful,
     DIVINEMostHarmful,
     DIVINEMostInfluential,
-    DIVINELeastInfluential
+    DIVINELeastInfluential,
+    AIDE
 ]
 
 # explanation_k = [1, 2, 3, 4, 5, 10, 15, 20, 25]

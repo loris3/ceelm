@@ -149,7 +149,8 @@ class TopKMostInfluential(Explanation):
 
 import torch
 import os
-from apricot import FacilityLocationSelection, MixtureSelection, SumRedundancySelection, FeatureBasedSelection
+from apricot import FacilityLocationSelection, MixtureSelection, SumRedundancySelection, FeatureBasedSelection 
+from apricot.optimizers import LazyGreedy
 import numpy as np
 from fl_optimizers import LazyWeightedGreedy
 from sklearn.preprocessing import RobustScaler, MinMaxScaler
@@ -345,7 +346,13 @@ class DIVINE(Explanation):
                 verbose=False
             )
             selector.fit(S)
-            return gamma, selector.ranking, D.mean()
+            
+            coreset = groundset[selector.ranking]
+            mean_pairwise_distance = pairwise_distances(coreset, metric='cosine').mean()
+            
+
+            
+            return gamma, selector.ranking, mean_pairwise_distance
 
         self.groundset = torch.stack(
             self.estimator.get_gradient(
@@ -419,7 +426,7 @@ class DIVINEMostHarmful(DIVINE):
         super().__init__(document_idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split,k=k, m=m, keep_gradients=keep_gradients)
     @property
     def description(self):
-        return f"{self.k} by facility location from Top-{self.groundset_explanation.k} most harmful (most positive scores)."
+        return f"{self.k} by DIVINE from Top-{self.groundset_explanation.k} most harmful (most positive scores)."
     @property 
     def importance_scores(self):
         return self.groundset_explanation.influence_estimate[self.groundset_explanation.documents]
@@ -453,3 +460,85 @@ class DIVINELeastInfluential(DIVINE):
     @property 
     def importance_scores(self):
         return -self.groundset_explanation.influence_estimate[self.groundset_explanation.documents].abs()
+    
+    
+    
+  
+
+
+class AIDE(Explanation):
+    """
+    Hyperparamters alpha, beta, gamma set as in AIDE paper
+    """
+    def __init__(self, document_idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split,k=10, m=100, alpha=0.2, beta=0.8, gamma=0.5, keep_gradients=False):
+        
+        super().__init__(document_idx,estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split, k=k, m=m)
+        self.groundset_explanation = TopKMostInfluential(document_idx, estimator,train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split, k=m)
+        self.k = k
+        self.m = m
+        self.keep_gradients = keep_gradients
+
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+
+    def _compute_documents(self):
+
+        self.groundset = torch.stack(
+            self.estimator.get_gradient(
+                os.path.basename(self.train_dataset_name),
+                self.train_dataset_split,
+                self.groundset_explanation.documents
+            )
+        ).to(torch.float32).cpu().numpy()
+        
+        test_instance = self.estimator.get_gradient(
+                os.path.basename(self.train_dataset_name),
+                self.train_dataset_split,
+                self.document_idx
+            ).to(torch.float32).cpu().numpy()
+
+        importance_scores = self.importance_scores.values.reshape(-1, 1).flatten()
+
+        sum_of_influence_scores = ImportanceLookupSelector(
+            n_samples=self.k,
+            importance_scores=importance_scores
+        )
+        
+        cos_sim = (self.groundset @ test_instance) / ((np.linalg.norm(self.groundset, axis=1) * np.linalg.norm(test_instance)) + 1e-10)
+            
+        sum_of_similarity_scores = ImportanceLookupSelector(
+            n_samples=self.k,
+            importance_scores=cos_sim.reshape(-1, 1).flatten()
+        )
+        
+        # we implement D(s) via FacilityLocationSelection (and multiply by the constant 1-(1/...) factor via weights=[])
+        fl_selector = FacilityLocationSelection(n_samples=self.k, metric="precomputed", optimizer=LazyGreedy(), verbose=False) # need to precompute sim matrix as MixtureSelection demands all positive (or all negative) values
+        
+        selector = MixtureSelection(
+            n_samples=self.k,
+            functions=[sum_of_influence_scores, sum_of_similarity_scores, fl_selector],
+            weights=[self.alpha, self.beta, 
+                     self.gamma*((1-(1/(self.k*(self.k-1)))) if self.k != 1 else 1) # constant factor dependent on size of set in D(S) defined in AIDE paper
+                     ],
+            verbose=False
+        )
+        
+        D = pairwise_distances(self.groundset, metric='cosine')
+        S = D.max() - D
+        selector.fit(S)
+        selection = np.array(self.groundset_explanation.documents)[selector.ranking]
+
+        if not self.keep_gradients:
+            del self.groundset
+
+        return selection
+    @property
+    def description(self):
+        return f"{self.k} by AIDE from Top-{self.groundset_explanation.k}."
+    @property 
+    def importance_scores(self):
+        return self.groundset_explanation.influence_estimate[self.groundset_explanation.documents].abs()
+
+
+

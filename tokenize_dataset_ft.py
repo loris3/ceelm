@@ -14,8 +14,8 @@ from transformers import AutoConfig, AutoTokenizer
 
 from datasets import load_dataset
 
-from finetune import ModelArguments, DataArguments, CustomTrainingArguments, tokenize_dataset, load_tokenizer
-
+from finetune import ModelArguments, DataArguments, CustomTrainingArguments, load_tokenizer
+from influence_estimation.util import tokenize_dataset
 
 if __name__ == "__main__":
     

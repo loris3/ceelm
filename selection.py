@@ -57,6 +57,10 @@ if __name__ == "__main__":
                                 selection = base(idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split, k=k, m=m)
                                 selection.documents
                                 del selection
+                            if "AIDE" in args.explanation_type:
+                                selection = base(idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split, k=k, m=m)
+                                selection.documents
+                                del selection
                                 
 
                         except Exception as e:
