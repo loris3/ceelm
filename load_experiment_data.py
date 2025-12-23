@@ -35,9 +35,10 @@ test_dataset_split = "test"
 
 
 MODELS = [
-    "./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
-    #  "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
+
+     "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
     #   "./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
+        # "./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
 ]
 
 

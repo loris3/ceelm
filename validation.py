@@ -72,6 +72,8 @@ if __name__ == "__main__":
                                 explanations.append(base(idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split,k=args.k, m=args.m, lambda_=args.lambda_))
                             elif "DIVINE" in args.explanation_type:
                                 explanations.append(base(idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split,k=args.k, m=args.m))
+                            elif "AIDE" in args.explanation_type:
+                                explanations.append(base(idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split,k=args.k, m=args.m))
                             else:
                                 explanations.append(base(idx, estimator, train_dataset_name, train_dataset_split, test_dataset_name, test_dataset_split, k=args.k))
 

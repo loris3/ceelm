@@ -24,8 +24,8 @@ export HF_MODULES_CACHE=/tmp/hf_cache/modules
 export HF_TOKEN=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
 
 
-OTHER_TYPES=("FacilityLocationMostInfluential" "FacilityLocationLeastInfluential" "FacilityLocationMostHelpful" "FacilityLocationMostHarmful")
-K_VALUES=(10 5 1 25)
+OTHER_TYPES=("FacilityLocationMostHelpful" "FacilityLocationLeastInfluential" "FacilityLocationMostInfluential" "FacilityLocationMostHarmful")
+K_VALUES=(1 25 10 5)
 LAMBDA_VALUES=(0.0 0.25 0.5 0.75 1.0)
 M_VALUES=(100)
 
