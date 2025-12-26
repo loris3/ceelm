@@ -36,9 +36,9 @@ test_dataset_split = "test"
 
 MODELS = [
 
-     "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
-    #   "./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
-        # "./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
+      "./models/Llama-3.2-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
+      "./models/Qwen2.5-0.5B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
+      "./models/OLMo-2-0425-1B_tulu-3-sft-olmo-2-mixture-0225_lr0.0001_seed42",
 ]
 
 
@@ -70,15 +70,60 @@ linear_coders = [MSECoderProjUSimpSparse, MSECoderProjUSimp, KLTCoder, MSECoder,
 
 
 
+
+import time
+from datasets import load_dataset
+
+
+def load_dataset_with_retry(
+    name,
+    split,
+    retries=10,
+    delay=5,
+    backoff=2,
+    **kwargs,
+):
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            return load_dataset(name, split=split, **kwargs)
+        except Exception as e:
+            last_err = e
+            if attempt == retries:
+                break
+            wait = delay * (backoff ** (attempt - 1))
+            print(
+                f"[load_dataset] attempt {attempt}/{retries} failed: {e}\n"
+                f"Retrying in {wait:.1f}s..."
+            )
+            time.sleep(wait)
+    raise last_err
+
+
+
 def load_data_and_estimators(results_only=False):
-    train_dataset = load_dataset(train_dataset_name, split=train_dataset_split) if not results_only else None
+    train_dataset = (
+        load_dataset_with_retry(
+            train_dataset_name,
+            split=train_dataset_split,
+        )
+        if not results_only
+        else None
+    )
     train_dataset = train_dataset.map(
         lambda example, idx: {"indices": idx},
         with_indices=True,
         num_proc=10
     ) if not results_only else None
 
-    test_dataset = load_dataset(test_dataset_name, split=test_dataset_split)  if not results_only else None
+    test_dataset = (
+        load_dataset_with_retry(
+            test_dataset_name,
+            split=test_dataset_split,
+        )
+        if not results_only
+        else None
+    )
     test_dataset = test_dataset.map(
         lambda example, idx: {"indices": idx},
         with_indices=True,

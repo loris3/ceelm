@@ -105,15 +105,15 @@ class DataInfEstimator(BaseEstimator):
                 return list(executor.map(fetch_grad_partial, train_instance_idx))
 
       
-    def get_gradient_dict(self, dataset, dataset_name, dataset_split, train_instance_idx):
+    def get_gradient_dict(self, dataset_name, dataset_split, train_instance_idx):
         if isinstance(train_instance_idx, int):
             grads_dict = super().get_gradient(dataset_name, dataset_split, train_instance_idx)
             return next(iter(grads_dict.values()))
 
         else:
             
-            def fetch_grad(idx, get_grad_fn, dataset, dataset_name, dataset_split):
-                        grads_dict = get_grad_fn(dataset, dataset_name, dataset_split, idx)
+            def fetch_grad(idx, get_grad_fn, dataset_name, dataset_split):
+                        grads_dict = get_grad_fn(dataset_name, dataset_split, idx)
                         return next(iter(grads_dict.values()))
 
           
@@ -122,3 +122,4 @@ class DataInfEstimator(BaseEstimator):
 
             with ThreadPoolExecutor() as executor:
                 return list(executor.map(fetch_grad_partial, train_instance_idx))
+ 

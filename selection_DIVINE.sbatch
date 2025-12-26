@@ -7,7 +7,7 @@
 #SBATCH --mem=80G
 #SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:1
-#SBATCH --time=0-8:00:00
+#SBATCH --time=1-8:00:00
 #SBATCH --nodes=1
 #SBATCH --array=0-15%90    
 #SBATCH --partition=p_low

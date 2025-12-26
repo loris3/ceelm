@@ -16,6 +16,48 @@ from torch.nn.utils.rnn import pad_sequence
 logging.set_verbosity_error()
 from transformers import SchedulerType
 import torch
+import time
+import torch
+from peft import AutoPeftModelForCausalLM
+
+
+def from_pretrained_with_retry(
+    adapter_path,
+    *,
+    is_trainable=True,
+    device=None,
+    retries=5,
+    delay=5,
+    backoff=2,
+    **kwargs,
+):
+    last_err = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            model = AutoPeftModelForCausalLM.from_pretrained(
+                adapter_path,
+                is_trainable=is_trainable,
+                **kwargs,
+            )
+            if device is not None:
+                model = model.to(device)
+            return model
+
+        except Exception as e:
+            last_err = e
+            if attempt == retries:
+                break
+
+            wait = delay * (backoff ** (attempt - 1))
+            print(
+                f"[from_pretrained] attempt {attempt}/{retries} failed: {e}\n"
+                f"Retrying in {wait:.1f}s..."
+            )
+            time.sleep(wait)
+
+    raise last_err
+
 
 def find_max_batch_size(model, data_collator, device, tokenizer, max_length=4096, start_bs=8, min_bs=1):
     print("Model parameter dtype:", next(model.parameters()).dtype, flush=True)
@@ -131,12 +173,27 @@ class ValidationEngine():
     def score(self, train_dataset, test_dataset,seed):
         metrics = {}
         torch.manual_seed(seed)
-        model_before_ft = AutoPeftModelForCausalLM.from_pretrained(self.adapter_path, is_trainable=True).to(self.device)
+        model_before_ft = from_pretrained_with_retry(
+        self.adapter_path,
+        is_trainable=True,
+        device=self.device,
+        retries=5,
+        delay=5,
+        backoff=2,
+        )
         log_p_before_ft, dist_before = self.get_log_p(model_before_ft, test_dataset)  
         del model_before_ft
         
         torch.manual_seed(seed)
-        model_after_ft = AutoPeftModelForCausalLM.from_pretrained(self.adapter_path, is_trainable=True).to(self.device)
+        
+        model_after_ft = from_pretrained_with_retry(
+            self.adapter_path,
+            is_trainable=True,
+            device=self.device,
+            retries=5,
+            delay=5,
+            backoff=2,
+        )
         model_after_ft = self.finetune(model_after_ft, train_dataset, seed=seed)    
         log_p_after_ft, dist_after = self.get_log_p(model_after_ft, test_dataset)
         del model_after_ft
