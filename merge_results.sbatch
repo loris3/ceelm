@@ -5,7 +5,7 @@
 #SBATCH --container-mount-home 
 #SBATCH --mem=256G
 #SBATCH --cpus-per-task=64  
-#SBATCH --time=0-00:59:00
+#SBATCH --time=0-01:59:00
 #SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --nodes=1
 python3 --version

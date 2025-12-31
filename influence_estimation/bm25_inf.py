@@ -25,7 +25,7 @@ class BM25Estimator(BaseEstimator):
         super().__init__(model_path, train_dataset, train_dataset_name, train_dataset_split,
                          test_dataset, test_dataset_name, test_dataset_split,
                          device=device, param_list=[k1, b], eval_mode=eval_mode)
-        self.gradient_cache_dir = os.path.join("/tmp/cache/gradients/full", "DataInfEstimator","8192-True", os.path.basename(self.model_path))
+        self.gradient_cache_dir = os.path.join("/tmp/cache/gradients/full", "   ","8192-True", os.path.basename(self.model_path))
         self.gradient_out_dir = os.path.join("cache/gradients/full", "DataInfEstimator","8192-True", os.path.basename(self.model_path))
         if eval_mode:
             self.gradient_cache_dir = self.gradient_out_dir

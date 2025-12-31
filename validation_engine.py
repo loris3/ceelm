@@ -21,13 +21,76 @@ import torch
 from peft import AutoPeftModelForCausalLM
 
 
+def peft_config_from_pretrained_with_retry(
+    adapter_path,
+    *,
+    retries=10,
+    delay=5,
+    backoff=2,
+    **kwargs,
+):
+    last_err = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            return PeftConfig.from_pretrained(adapter_path, **kwargs)
+
+        except Exception as e:
+            last_err = e
+            if attempt == retries:
+                break
+
+            wait = delay * (backoff ** (attempt - 1))
+            print(
+                f"[PeftConfig.from_pretrained] attempt {attempt}/{retries} failed:\n"
+                f"{e}\nRetrying in {wait:.1f}s...",
+                flush=True,
+            )
+            time.sleep(wait)
+
+    raise last_err
+
+def tokenizer_from_pretrained_with_retry(
+    model_name_or_path,
+    *,
+    retries=10,
+    delay=5,
+    backoff=2,
+    **kwargs,
+):
+    last_err = None
+
+    for attempt in range(1, retries + 1):
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_name_or_path,
+                **kwargs,
+            )
+            return tokenizer
+
+        except Exception as e:
+            last_err = e
+            if attempt == retries:
+                break
+
+            wait = delay * (backoff ** (attempt - 1))
+            print(
+                f"[tokenizer_from_pretrained] attempt {attempt}/{retries} failed:\n"
+                f"{e}\nRetrying in {wait:.1f}s...",
+                flush=True,
+            )
+            time.sleep(wait)
+
+    raise last_err
+
+
 def from_pretrained_with_retry(
     adapter_path,
     *,
     is_trainable=True,
     device=None,
     retries=5,
-    delay=5,
+    delay=10,
     backoff=2,
     **kwargs,
 ):
@@ -102,12 +165,13 @@ class ValidationEngine():
 
         self.lr = lr
         self.epochs = epochs
-        peft_config = PeftConfig.from_pretrained(adapter_path)
+        peft_config = peft_config_from_pretrained_with_retry(adapter_path)
         self.base_model_path = peft_config.base_model_name_or_path
         
         
-        self.tokenizer = AutoTokenizer.from_pretrained(self.base_model_path)
-
+        self.tokenizer = tokenizer_from_pretrained_with_retry(self.base_model_path)
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         
     def data_collator(self, batch):
         input_ids = [torch.as_tensor(ex["input_ids"]) for ex in batch]

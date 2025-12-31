@@ -5,12 +5,12 @@
 
 
 
-#SBATCH --nodelist=dgx1
+#SBATCH --nodelist=shelob
 # # dgx-h100-em2
 #SBATCH --container-mount-home 
 #SBATCH --mem=64G
 #SBATCH --cpus-per-task=8 
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:0
 #SBATCH --time=0-10:00:00
 #SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --nodes=1

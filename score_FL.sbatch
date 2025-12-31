@@ -4,7 +4,7 @@
 #SBATCH --nodelist=dgx-h100-em2,shelob,galadriel,vader
 #SBATCH --container-mount-home
 #SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
-#SBATCH --mem=60G
+#SBATCH --mem=90G
 #SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:1
 #SBATCH --time=1-1:00:00
