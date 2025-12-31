@@ -8,7 +8,6 @@ from influence_estimation.datainf.influence import IFEngineGeneration
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from influence_estimation.util import tokenize_dataset
-import util
 
 
 # Configure logger at module level

@@ -1,4 +1,4 @@
-Repository for the paper **Compact Example-based Explanations For Language Models**.
+Repository for the paper *Compact Example-based Explanations For Language Models*.
 ## Setup
 All scripts are designed to run inside Docker containers. The provided scheduling scripts (`*.sbatch, run.sh`) are for a SLURM cluster using the [pyxis](https://github.com/NVIDIA/pyxis) SPANK plugin. 
 1. Build `Dockerfile` and `Dockerfile_eval`
