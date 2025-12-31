@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Merging Parquet Files"
+#SBATCH --job-name="[CEELM] Merging Parquet Files"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
 #SBATCH --nodelist=dgx-h100-em2,dgx1,shelob,galadriel
 #SBATCH --container-mount-home 

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Influence Estimation"
+#SBATCH --job-name="[CEELM] Influence Estimation"
 #SBATCH --array=0-2%3
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
 #SBATCH --nodelist=dgx-h100-em2,galadriel,shelob

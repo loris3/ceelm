@@ -4,8 +4,6 @@ import re
 def store_to_tex(label: str, value: float, tex_path: str = "./figures/values.tex"):
     """
     Store a label/value pair in a TeX file as a \newcommand.
-    All digits are removed from the label first.
-    Any line containing the cleaned label is deleted before adding the new command.
     """
     # Remove all digits from label
     label_clean = re.sub(r"\d", "", label)

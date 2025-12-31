@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Finetuning Sweep"
+#SBATCH --job-name="[CEELM] Finetuning Sweep"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
 #SBATCH --nodelist=dgx-h100-em2
 #SBATCH --container-mount-home
@@ -19,5 +19,4 @@ export HF_TRANSFER=1
 
 export TOKENIZERS_PARALLELISM=true
 
-python3 -m  wandb agent loriss/cfe_finetuning/tsbm7skf
-python3 -m  wandb agent loriss/cfe_finetuning/9pehckf1
+python3 -m  wandb agent SET_ME

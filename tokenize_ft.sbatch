@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Pre-tokenization before finetuning"
+#SBATCH --job-name="[CEELM] Pre-tokenization before finetuning"
 
 #SBATCH --container-image=ghcr.io#ghcr.io#loris3/cfe:latest 
 #SBATCH --container-mount-home 

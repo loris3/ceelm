@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Jupyter Lab Server"
+#SBATCH --job-name="[CEELM] Jupyter Lab Server"
 
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
 

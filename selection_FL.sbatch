@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="[CFE] Selection FacilityLocation"
+#SBATCH --job-name="[CEELM] Selection FacilityLocation"
 #SBATCH --container-image="ghcr.io#loris3/cfe:latest"
 #SBATCH --nodelist=dgx-h100-em2,shelob,galadriel,vader
 #SBATCH --container-mount-home
