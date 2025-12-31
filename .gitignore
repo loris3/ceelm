@@ -19,7 +19,7 @@ results/*
 dataset/*
 *.err
 
-*.sh
+
 tmp/*
 *.ttc
 *.otf
