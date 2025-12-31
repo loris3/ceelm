@@ -49,3 +49,4 @@ scoring.txt
 merge_fail_list_scoring.txt
 figures/*
 NotoColorEmoji-Regular.ttf
+*_executed.ipynb

@@ -19,4 +19,6 @@ export HF_TRANSFER=1
 
 export TOKENIZERS_PARALLELISM=true
 
+
+# first run: python3 -m wandb sweep --project=ceelm_finetuning sweep.yaml and set the sweep ID below:
 python3 -m  wandb agent SET_ME

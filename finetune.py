@@ -1,7 +1,3 @@
-# python3 -m wandb sweep --project=cfe_finetuning sweep_test.yaml
-# python3 -m wandb sweep --project=cfe_finetuning sweep.yaml
-
-
 import os
 import wandb
 import torch

@@ -1,6 +1,3 @@
-# load_experiment_data.py
-
-
 from influence_estimation.data_inf import DataInfEstimator
 from influence_estimation.less_inf import LESSEstimator
 from influence_estimation.bm25_inf import BM25Estimator
