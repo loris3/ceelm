@@ -1,18 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name="[CEELM] Influence Estimation"
 #SBATCH --array=0-2%3
-#SBATCH --container-image="ghcr.io#loris3/cfe:latest"
-#SBATCH --nodelist=dgx-h100-em2,galadriel,shelob
-#SBATCH --container-mount-home 
 #SBATCH --mem=925G
 #SBATCH --cpus-per-task=64  
 #SBATCH --gres=gpu:1
 #SBATCH --time=1-7:59:00
-#SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --nodes=1
-
+source .env
 python3 --version
-export HF_TOKEN=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
+
 df -h
 ulimit -n 65535
 pip show datasets

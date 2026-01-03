@@ -1,9 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name="[CEELM] Scoring FacilityLocation"
-#SBATCH --container-image="ghcr.io#loris3/cfe:latest"
-#SBATCH --nodelist=dgx-h100-em2,shelob,galadriel,vader
-#SBATCH --container-mount-home
-#SBATCH --container-workdir=/mnt/nlp-data/home/users/loriss21cs/cfe
 #SBATCH --mem=90G
 #SBATCH --cpus-per-task=12
 #SBATCH --gres=gpu:1
@@ -17,11 +13,8 @@ python3 --version
 df -h
 ulimit -n 65535
 
-export HF_TRANSFER=1
-export HF_HOME=/tmp/hf_cache
-export HF_DATASETS_CACHE=/tmp/hf_cache/datasets
-export HF_MODULES_CACHE=/tmp/hf_cache/modules
-export HF_TOKEN=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
+source .env
+
 
 
 FACILITY_TYPES=("FacilityLocationLeastInfluential" "FacilityLocationMostInfluential" "FacilityLocationMostHelpful" "FacilityLocationMostHarmful")

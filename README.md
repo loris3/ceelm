@@ -3,8 +3,8 @@ Repository for the paper *Compact Example-based Explanations For Language Models
 All scripts are designed to run inside Docker containers. The provided scheduling scripts (`*.sbatch, run.sh`) are for a SLURM cluster using the [pyxis](https://github.com/NVIDIA/pyxis) SPANK plugin. 
 1. Build `Dockerfile` and `Dockerfile_eval`
 2. Push them to a Docker registry as `ceelm:latest` and `ceelm:eval`
-3. Make sure that all `*.sbatch` and `*.sh` files in the root directory point to the appropriate images
-
+3. Update the `.env` file to point to these images
+4. Set huggingface and wandb tokens in `.env`
 
 ## Fine-tuning
 

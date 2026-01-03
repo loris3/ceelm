@@ -18,7 +18,7 @@ cache/*
 results/*
 dataset/*
 *.err
-
+.env
 
 tmp/*
 *.ttc
