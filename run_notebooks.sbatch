@@ -7,6 +7,8 @@
 #SBATCH --time=0-10:00:00
 #SBATCH --array=0-4
 
+mkdir -p ./out
+
 
 source .env
 ulimit -n 65535
@@ -25,7 +27,7 @@ NOTEBOOKS=(
 )
 
 NB=${NOTEBOOKS[$SLURM_ARRAY_TASK_ID]}
-OUT="${NB%.ipynb}_executed.ipynb"
+OUT="./out/${NB%.ipynb}.ipynb"
 
 echo "Running notebook: $NB"
 echo "Output notebook: $OUT"
