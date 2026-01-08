@@ -10,7 +10,7 @@ We provide models and splits as a [Hugging Face Collection](https://hf.co/collec
 > [!TIP]
 > See `./out` for rendered Jupyter Notebooks.
 
-All scripts run inside Docker containers hosted on the GitHub Container Registry. We provide scheduling scripts (`*.sbatch, run.sh`) for a SLURM cluster using the [pyxis](https://github.com/NVIDIA/pyxis) SPANK plugin. 
+All scripts run inside Docker containers [hosted on the GitHub Container Registry](https://github.com/loris3/ceelm/pkgs/container/ceelm). We provide scheduling scripts (`*.sbatch, run.sh`) for a SLURM cluster using the [pyxis](https://github.com/NVIDIA/pyxis) SPANK plugin. 
 
 
 ### Building Docker Images (Optional)
