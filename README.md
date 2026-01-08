@@ -2,12 +2,21 @@
 
 <img src="ceelm.png" alt="Figure: Simplified Scoring Setup for the Selection Relevance Score" width="300px"/>
 
-Repository for the paper *Compact Example-based Explanations For Language Models*.
+Repository for the paper [*Compact Example-based Explanations For Language Models*](https://arxiv.org/abs/2601.03786).
+## Models and Data
+We provide models and splits as a [Hugging Face Collection](https://hf.co/collections/loris3/compact-example-based-explanations-for-language-models)
+
 ## Setup
-All scripts run inside Docker containers. The provided scheduling scripts (`*.sbatch, run.sh`) are for a SLURM cluster using the [pyxis](https://github.com/NVIDIA/pyxis) SPANK plugin. 
+> [!TIP]
+> See `./out` for rendered Jupyter Notebooks.
+
+All scripts run inside Docker containers hosted on the GitHub Container Registry. We provide scheduling scripts (`*.sbatch, run.sh`) for a SLURM cluster using the [pyxis](https://github.com/NVIDIA/pyxis) SPANK plugin. 
+
+
+### Building Docker Images (Optional)
 1. Build `Dockerfile` and `Dockerfile_eval`
 2. Push them to a Docker registry as `ceelm:latest` and `ceelm:eval`
-3. Create an `.env` file
+3. Set `CONTAINER_IMAGE` and `CONTAINER_IMAGE_EVAL` in the `.env` file accordingly
 
 ## Fine-tuning
 
@@ -24,12 +33,25 @@ All scripts run inside Docker containers. The provided scheduling scripts (`*.sb
 2. Obtain influence estimates: `./schedule.sh estimate_influence.sbatch`
 
 ## Selection Relevance Scoring ($\xi^{\mathcal{SR}}$) and Validation Experiment ($\xi^{+}$ and $\xi^{JSD}$)
-Configuration in `load_experiment_data.py` and `*.sbatch` files.
+
 1. Schedule jobs: `./run.sh`
 2. Check progress with `progress.ipynb` (after running `./schedule.sh merge_results.sbatch`)
 2. Once everything is done: `./schedule.sh merge_results.sbatch`
-
+Configuration in `load_experiment_data.py` and `*.sbatch` files.
 
 ## Evaluation
 1. Run `./schedule.sh run_notebooks.sbatch` to generate tables and figures
 2. See `./out/*.ipynb`, `figures`, and `tables`
+
+## Citation
+```bibtex
+@misc{schoenegger2026compactexamplebasedexplanationslanguage,
+      title={Compact Example-Based Explanations for Language Models}, 
+      author={Loris Schoenegger and Benjamin Roth},
+      year={2026},
+      eprint={2601.03786},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2601.03786}, 
+}
+```
