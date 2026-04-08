@@ -12,7 +12,10 @@ JOB_FILE="$1"
 
 source .env
 SBATCH_ARGS=()
-
+if [[ "$1" == --dependency=* ]]; then
+    SBATCH_ARGS+=("$1")
+    shift
+fi
 SBATCH_ARGS+=(--container-image="$CONTAINER_IMAGE")
 SBATCH_ARGS+=(--container-workdir="$CONTAINER_WORKDIR")
 SBATCH_ARGS+=(--nodelist="$NODELIST")
