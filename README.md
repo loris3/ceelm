@@ -2,7 +2,7 @@
 
 <img src="ceelm.png" alt="Figure: Simplified Scoring Setup for the Selection Relevance Score" width="300px"/>
 
-Repository for the paper [*Compact Example-based Explanations For Language Models*](https://arxiv.org/abs/2601.03786).
+Repository for the paper [*Compact Example-based Explanations For Language Models*](https://arxiv.org/abs/2601.03786). (ACL 2026 Findings)
 ## Models and Data
 We provide models and splits as a [Hugging Face Collection](https://hf.co/collections/loris3/compact-example-based-explanations-for-language-models)
 
@@ -44,6 +44,7 @@ Configuration in `load_experiment_data.py` and `*.sbatch` files.
 2. See `./out/*.ipynb`, `figures`, and `tables`
 
 ## Citation
+To appear in *Findings of the ACL 2026*.
 ```bibtex
 @misc{schoenegger2026compactexamplebasedexplanationslanguage,
       title={Compact Example-Based Explanations for Language Models}, 
